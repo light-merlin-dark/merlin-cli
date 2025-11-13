@@ -1,0 +1,25 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+.env.local
+coverage/
+.vscode/
+.idea/
+*.swp
+*.swo
+.npm/
+.cache/
+.parcel-cache/
+.turbo/
+tsconfig.tsbuildinfo
+.blueprints
+
+# Meta
+@meta
+Makefile
+docs
+
+# Scripts directory - development only
+scripts/

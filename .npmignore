@@ -1,0 +1,45 @@
+# Source files
+src/
+tests/
+examples/
+
+# Build files
+tsconfig.json
+tsconfig.build.json
+bunfig.toml
+Makefile
+
+# Documentation (except what's in package.json files array)
+docs/OPEN_SOURCE_PREP_SUMMARY.md
+docs/models/
+
+# Development files
+.git/
+.github/
+.vscode/
+.idea/
+*.log
+*.swp
+*.swo
+*~
+
+# Test files
+coverage/
+.nyc_output/
+*.test.ts
+*.spec.ts
+
+# Scripts
+scripts/
+
+# CI/CD
+.travis.yml
+.gitlab-ci.yml
+azure-pipelines.yml
+
+# Other
+node_modules/
+.DS_Store
+Thumbs.db
+.env
+.env.local

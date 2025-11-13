@@ -1,0 +1,5 @@
+[install]
+registry = "https://registry.npmjs.org/"
+
+[install.scopes]
+"@merlin" = { token = "$NPM_PRIVATE_TOKEN", url = "https://npm.private.invalid/" }
