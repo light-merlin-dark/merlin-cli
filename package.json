@@ -1,7 +1,7 @@
 {
   "name": "@light-merlin-dark/merlin-cli",
   "version": "1.0.7",
-  "description": "Build CLIs fast - Type-safe DI, middleware, plugins, minimal boilerplate",
+  "description": "Blazingly fast CLI framework - Type-safe DI, middleware, plugins!",
   "keywords": [
     "cli",
     "cli-framework",
