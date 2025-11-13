@@ -1,6 +1,6 @@
 {
   "name": "@light-merlin-dark/merlin-cli",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Blazingly fast CLI - Minimalware, Type-safe DI, Plugins!",
   "keywords": [
     "cli",
