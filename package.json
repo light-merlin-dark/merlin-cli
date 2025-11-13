@@ -1,7 +1,7 @@
 {
   "name": "@light-merlin-dark/merlin-cli",
   "version": "1.0.7",
-  "description": "Modern CLI framework for TypeScript & Bun - 90% less boilerplate than Commander.js with type-safe DI, lazy loading, and plugin system",
+  "description": "Build CLIs fast - Type-safe DI, middleware, plugins, minimal boilerplate",
   "keywords": [
     "cli",
     "cli-framework",
