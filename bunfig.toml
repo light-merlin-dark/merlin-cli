@@ -1,0 +1,5 @@
+[install]
+registry = "https://registry.npmjs.org/"
+
+[install.scopes]
+"@merlin" = { token = "$NPM_HYPER_GDN_TOKEN", url = "https://npm.hyper.gdn/" }

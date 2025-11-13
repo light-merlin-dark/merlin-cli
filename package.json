@@ -1,0 +1,97 @@
+{
+  "name": "@light-merlin-dark/merlin-cli",
+  "version": "1.0.7",
+  "description": "Modern CLI framework for TypeScript & Bun - 90% less boilerplate than Commander.js with type-safe DI, lazy loading, and plugin system",
+  "keywords": [
+    "cli",
+    "cli-framework",
+    "command-line",
+    "typescript",
+    "bun",
+    "dependency-injection",
+    "plugin-system",
+    "service-registry",
+    "middleware",
+    "lazy-loading",
+    "valibot",
+    "validation",
+    "testing",
+    "commander-alternative",
+    "type-safe"
+  ],
+  "homepage": "https://github.com/light-merlin-dark/merlin-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/light-merlin-dark/merlin-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/light-merlin-dark/merlin-cli/issues"
+  },
+  "author": "Robert E. Beckner III (Merlin) <https://rbeckner.com>",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "merlin-cli": "./dist/bin.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && bun build ./src/index.ts --target node --outdir ./dist && tsc --emitDeclarationOnly",
+    "test": "bun test",
+    "test:types": "tsc --noEmit --project tsconfig.json",
+    "test:integration": "bun test tests/integration",
+    "test:snapshot": "bun test --tap tests/snapshots",
+    "test:watch": "bun test --watch",
+    "version:patch": "npm version patch --no-git-tag-version",
+    "version:minor": "npm version minor --no-git-tag-version",
+    "version:major": "npm version major --no-git-tag-version",
+    "publish:public": "npm publish --access public",
+    "smart-release": "bun scripts/smart-release.ts",
+    "verify-release": "bun scripts/verify-global-release.ts",
+    "prepublishOnly": "npm run build && npm run test:types"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "bun": ">=1.2.0"
+  },
+  "dependencies": {
+    "@types/node": "^20.0.0",
+    "picocolors": "^1.0.0",
+    "prompts": "^2.4.2",
+    "valibot": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/prompts": "^2.4.9",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "bun": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "bun": {
+      "optional": true
+    }
+  }
+}
