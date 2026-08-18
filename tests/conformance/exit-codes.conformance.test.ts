@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeAll } from 'bun:test';
-import { ensureBuilt, runCLI, resolvedCode } from './harness.ts';
+import { ensureBuilt, runCLI, runScript, resolvedCode } from './harness.ts';
 
 /**
  * The exit-code contract, asserted against the shipped bundle from a real
@@ -160,6 +160,60 @@ describe('exit codes (built artifact, real process)', () => {
         ['fail']
       );
       expect(r.code).toBe(1);
+    });
+
+    test('a consumer-supplied logger is still counted', async () => {
+      // The common real-world shape, and the one that nearly made this whole
+      // feature a no-op: the consumer builds its own logger and registers it
+      // on the same 'logger' key from cli.bootstrap, replacing ours. Four
+      // repos in the estate do this. If registration is not intercepted, the
+      // policy reads a null count, treats it as zero, and silently never fires.
+      const r = await runScript(
+        `import { createCLI, LoggerToken } from __DIST__;\n` +
+          `const cli = createCLI({ name: 'p', version: '0', exitProcess: false, commands: {\n` +
+          `  f: { name: 'f', description: 'd', execute: (ctx) => { ctx.registry.get(LoggerToken).error('it failed'); return; } }\n` +
+          `} });\n` +
+          `cli.bootstrap = async (registry) => {\n` +
+          `  registry.register(LoggerToken, {\n` +
+          `    info: console.log, error: console.error, warn: console.warn,\n` +
+          `    debug: () => {}, success: console.log, log: () => {}\n` +
+          `  });\n` +
+          `};\n` +
+          `console.log('[conformance:resolved] ' + (await cli.run(['f'])));\n`
+      );
+
+      expect(r.stderr).toContain('it failed');
+      expect(resolvedCode(r)).toBe(1);
+    });
+
+    test('a consumer-supplied logger keeps its own behaviour when wrapped', async () => {
+      // The wrapper must be invisible: custom methods, extra properties and
+      // `this` all survive, or we would be fixing one defect by adding another.
+      const r = await runScript(
+        `import { createCLI, LoggerToken } from __DIST__;\n` +
+          `const cli = createCLI({ name: 'p', version: '0', exitProcess: false, commands: {\n` +
+          `  f: { name: 'f', description: 'd', execute: (ctx) => {\n` +
+          `    const l = ctx.registry.get(LoggerToken);\n` +
+          `    l.audit('custom method works');\n` +
+          `    l.info('plain info');\n` +
+          `    if (l.tag !== 'mine') throw new Error('property lost');\n` +
+          `  } }\n` +
+          `} });\n` +
+          `cli.bootstrap = async (registry) => {\n` +
+          `  registry.register(LoggerToken, {\n` +
+          `    tag: 'mine',\n` +
+          `    info: (m) => console.log('custom:' + m),\n` +
+          `    error: console.error, warn: () => {}, debug: () => {},\n` +
+          `    success: () => {}, log: () => {},\n` +
+          `    audit(m) { console.log('audit:' + m + ':' + this.tag); }\n` +
+          `  });\n` +
+          `};\n` +
+          `console.log('[conformance:resolved] ' + (await cli.run(['f'])));\n`
+      );
+
+      expect(r.stdout).toContain('audit:custom method works:mine');
+      expect(r.stdout).toContain('custom:plain info');
+      expect(resolvedCode(r)).toBe(0);
     });
 
     test('errorExitPolicy: "off" restores the permissive behaviour', async () => {

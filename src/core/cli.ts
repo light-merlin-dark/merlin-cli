@@ -9,10 +9,54 @@ import type {
   Middleware
 } from '../types/index.ts';
 import { CommandRouter } from '../commands/router.ts';
-import { createLogger, errorCountOf } from '../services/logger.ts';
+import { createLogger, errorCountOf, withErrorCounting } from '../services/logger.ts';
 import { createPrompter } from '../services/prompter.ts';
 import { createHelpCommand } from '../commands/universal/help.ts';
 import { createVersionCommand } from '../commands/universal/version.ts';
+
+/** Marks a registry whose logger registrations are already intercepted. */
+const COUNTING_INSTALLED = Symbol.for('@merlin/cli.loggerCountingInstalled');
+
+/**
+ * Patch a registry so every logger registered under `LoggerToken` is wrapped
+ * with error counting — including ones registered long after `createCLI`
+ * returns, which is the normal case.
+ *
+ * Idempotent: a registry passed to two CLIs is patched once.
+ */
+function installLoggerCounting(registry: ServiceRegistry): void {
+  const target = registry as ServiceRegistry & Record<symbol, unknown>;
+  if (target[COUNTING_INSTALLED]) return;
+  target[COUNTING_INSTALLED] = true;
+
+  const isLoggerKey = (tokenOrName: unknown): boolean =>
+    (typeof tokenOrName === 'string' ? tokenOrName : (tokenOrName as { key?: string })?.key) ===
+    LoggerToken.key;
+
+  const register = registry.register.bind(registry);
+  const registerFactory = registry.registerFactory.bind(registry);
+
+  (registry as { register: (t: unknown, s: unknown) => void }).register = (tokenOrName, service) => {
+    const wrapped =
+      isLoggerKey(tokenOrName) && service && typeof service === 'object'
+        ? withErrorCounting(service as object)
+        : service;
+    return (register as (t: unknown, s: unknown) => void)(tokenOrName, wrapped);
+  };
+
+  (registry as { registerFactory: (t: unknown, f: () => unknown) => void }).registerFactory = (
+    tokenOrName,
+    factory
+  ) => {
+    const wrapped = isLoggerKey(tokenOrName)
+      ? () => {
+          const service = factory();
+          return service && typeof service === 'object' ? withErrorCounting(service as object) : service;
+        }
+      : factory;
+    return (registerFactory as (t: unknown, f: () => unknown) => void)(tokenOrName, wrapped);
+  };
+}
 
 export interface CLI {
   name: string;
@@ -33,6 +77,18 @@ export interface CLI {
 
 export function createCLI(config: CLIConfig): CLI {
   const registry = config.registry || createRegistry();
+
+  // Any logger that lands under `LoggerToken` gets error counting, no matter
+  // who registers it or when.
+  //
+  // Consumers overwhelmingly bring their own logger, and typically register it
+  // from `cli.bootstrap` — i.e. after this function has returned, on a key that
+  // collides with ours. Counting only the logger we construct here would mean
+  // the exit-code guarantee quietly evaporates for most real CLIs while still
+  // reporting itself as active. Intercepting the registration is what makes
+  // `errorExitPolicy` a property of the framework rather than of whether the
+  // consumer happened to keep our logger.
+  installLoggerCounting(registry);
 
   // Register core services using tokens
   registry.register(ConfigToken, {

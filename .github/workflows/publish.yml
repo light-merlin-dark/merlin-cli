@@ -1,0 +1,76 @@
+# Publish to npmjs.org via Trusted Publishing (OIDC).
+#
+# No NPM_TOKEN. npm mints a short-lived credential from this workflow's OIDC
+# identity, which is why `id-token: write` below is load-bearing — without it
+# the publish fails with a 404/401 that looks like a permissions problem.
+#
+# The trusted publisher must be configured once on npmjs.com, under the
+# package's Settings, naming this repository and this workflow filename
+# (`publish.yml`). Until that exists, this workflow cannot publish and should
+# not be expected to.
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # required for OIDC — this is what replaces the token
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest # self-hosted runners are not supported by trusted publishing
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Trusted publishing needs a recent npm; the runner's bundled version
+      # may predate OIDC support.
+      - name: Use an npm that speaks OIDC
+        run: npm install -g npm@latest
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: npm ci
+
+      # The gate, run explicitly rather than left to prepublishOnly. This
+      # package once shipped a 65 KB stub because a build exited 0 while
+      # tree-shaking the framework out of the bundle — so the artifact is
+      # proven here, before anything is published, not after it breaks someone.
+      - name: Typecheck
+        run: npm run test:types
+
+      - name: Test
+        run: bun test
+
+      - name: Build
+        run: npm run build
+
+      - name: Conformance (asserts the built artifact)
+        run: npm run test:conformance
+
+      # Fail early and loudly if the tag and the manifest disagree, rather than
+      # publishing a version nobody asked for.
+      - name: Tag must match package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          PKG=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$PKG" ]; then
+            echo "tag v$TAG does not match package.json version $PKG"
+            exit 1
+          fi
+          echo "publishing $PKG"
+
+      - name: Publish
+        run: npm publish
