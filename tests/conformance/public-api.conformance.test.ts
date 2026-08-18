@@ -22,24 +22,84 @@ const RUNTIME_SYMBOLS = [
   'PrompterToken'
 ] as const;
 
-/** Type-only exports: verified by compiling against the emitted .d.ts. */
-const TYPE_SYMBOLS = ['Command', 'CommandDefinition', 'OptionSpec', 'ArgSpec'] as const;
+/**
+ * Type-only exports: verified by compiling against the emitted .d.ts.
+ *
+ * Every one of these is named in the README. A consumer who follows the docs
+ * and gets a tsc error is as broken as one whose import throws, so the docs and
+ * the artifact are checked against each other here.
+ */
+const TYPE_SYMBOLS = [
+  'Command',
+  'CommandDefinition',
+  'CommandContext',
+  'OptionSpec',
+  'ArgSpec',
+  'CLIConfig',
+  'Middleware',
+  'Logger',
+  'Prompter',
+  'Token'
+] as const;
+
+/** Runtime exports the README tells people to use. */
+const DOCUMENTED_RUNTIME = [
+  ...RUNTIME_SYMBOLS,
+  'ConfigToken',
+  'createTestHarness',
+  'createMockLogger',
+  'createMockPrompter',
+  'mockRegistry',
+  'colors',
+  'createProgress',
+  'createLogger',
+  'createPrompter',
+  'CommandRouter',
+  'ServiceRegistry',
+  'resolveExitCode'
+] as const;
 
 describe('public API (built artifact)', () => {
   beforeAll(async () => {
     await ensureBuilt();
   }, 120_000);
 
-  test('every runtime symbol is present in the bundle', async () => {
+  test('every runtime symbol the README documents is present in the bundle', async () => {
     const r = await runScript(
       `import * as m from __DIST__;\n` +
-        `const missing = ${JSON.stringify(RUNTIME_SYMBOLS)}.filter(k => m[k] === undefined);\n` +
+        `const missing = ${JSON.stringify(DOCUMENTED_RUNTIME)}.filter(k => m[k] === undefined);\n` +
         `console.log(JSON.stringify(missing));\n` +
         `process.exit(missing.length ? 1 : 0);\n`
     );
 
     expect(r.stdout.trim()).toBe('[]');
     expect(r.code).toBe(0);
+  });
+
+  test('the README quick-start runs exactly as printed', async () => {
+    // Copied from the README, not paraphrased. Docs that drift from the
+    // artifact are the same defect as an export list that drifts from it.
+    const source =
+      `import { createCLI, createCommand, LoggerToken } from __DIST__;\n` +
+      `const greet = createCommand({\n` +
+      `  name: 'greet',\n` +
+      `  description: 'Greet someone by name',\n` +
+      `  execute: (ctx) => {\n` +
+      `    const logger = ctx.registry.get(LoggerToken);\n` +
+      `    const name = ctx.args[0];\n` +
+      `    if (!name) { logger.error('Who am I greeting?'); return; }\n` +
+      `    logger.success(\`Hello, \${name}!\`);\n` +
+      `  }\n` +
+      `});\n` +
+      `await createCLI({ name: 'mycli', version: '1.0.0', commands: { greet } }).run();\n`;
+
+    const named = await runScript(source, ['greet', 'merlin']);
+    expect(named.stdout).toContain('Hello, merlin!');
+    expect(named.code).toBe(0);
+
+    const missing = await runScript(source, ['greet']);
+    expect(missing.stderr).toContain('Who am I greeting?');
+    expect(missing.code).toBe(1);
   });
 
   test('the factory symbols are callable, not just defined', async () => {
@@ -142,11 +202,9 @@ describe('public API (built artifact)', () => {
     await Bun.write(
       probe,
       `import type { ${TYPE_SYMBOLS.join(', ')} } from ${JSON.stringify(DIST_ENTRY.replace(/\.js$/, ''))};\n` +
-        `const _cmd: Command<string> = { name: 'n', description: 'd', execute: () => 'x' } as Command<string>;\n` +
-        `const _opt: OptionSpec = { type: 'string', description: 'd' } as OptionSpec;\n` +
-        `const _arg: ArgSpec = { type: 'string', description: 'd' } as ArgSpec;\n` +
-        `const _def: CommandDefinition = _cmd as CommandDefinition;\n` +
-        `void _cmd; void _opt; void _arg; void _def;\n`
+        `type Probe = [Command<unknown>, CommandDefinition, CommandContext, OptionSpec, ArgSpec,\n` +
+        `  CLIConfig, Middleware, Logger, Prompter, Token<string>];\n` +
+        `declare const _p: Probe;\nvoid _p;\n`
     );
 
     const proc = Bun.spawn(

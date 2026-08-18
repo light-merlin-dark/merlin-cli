@@ -42,6 +42,55 @@ describe('packaging', () => {
     }
   });
 
+  test('every path the exports map promises actually exists', async () => {
+    // `exports` claimed a CommonJS build at ./dist/index.cjs that the build
+    // script never produced, so `require()` of this package threw
+    // ERR_MODULE_NOT_FOUND. Same species as the tree-shaken stub: a declared
+    // surface the artifact does not have, and nothing checked.
+    const promised: string[] = [];
+
+    const walk = (node: unknown) => {
+      if (typeof node === 'string') {
+        if (node.startsWith('./')) promised.push(node);
+      } else if (node && typeof node === 'object') {
+        Object.values(node).forEach(walk);
+      }
+    };
+    walk(pkg.exports);
+
+    expect(promised.length).toBeGreaterThan(0);
+
+    for (const rel of promised) {
+      expect(() => statSync(join(REPO_ROOT, rel))).not.toThrow();
+    }
+  });
+
+  test('no dependency is declared without being used', async () => {
+    // `valibot` sat in dependencies with zero imports — and the README
+    // advertised it. A public package should not make every consumer install
+    // something it never loads.
+    const sources = Bun.spawnSync(['git', 'grep', '-lE', "from '[a-z@]", '--', 'src'], {
+      cwd: REPO_ROOT
+    });
+    const text = sources.stdout.toString();
+    expect(text.length).toBeGreaterThan(0);
+
+    const all = Bun.spawnSync(['git', 'grep', '-hoE', "from '[^.'][^']*'", '--', 'src'], {
+      cwd: REPO_ROOT
+    })
+      .stdout.toString()
+      .split('\n')
+      .map(l => l.replace(/^from '|'$/g, '').trim())
+      .filter(Boolean)
+      .map(s => (s.startsWith('@') ? s.split('/').slice(0, 2).join('/') : s.split('/')[0]));
+
+    const used = new Set(all);
+
+    for (const dep of Object.keys(pkg.dependencies ?? {})) {
+      expect(used.has(dep)).toBe(true);
+    }
+  });
+
   test('the bundle imports cleanly under plain Node', async () => {
     // Node is what refused the stub; Bun imported it happily. Consumers run
     // under Node, so Node is the runtime that gets to vote.

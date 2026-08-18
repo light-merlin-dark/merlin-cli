@@ -1,584 +1,252 @@
-```
-███╗   ███╗███████╗██████╗ ██╗     ██╗███╗   ██╗
-████╗ ████║██╔════╝██╔══██╗██║     ██║████╗  ██║
-██╔████╔██║█████╗  ██████╔╝██║     ██║██╔██╗ ██║
-██║╚██╔╝██║██╔══╝  ██╔══██╗██║     ██║██║╚██╗██║
-██║ ╚═╝ ██║███████╗██║  ██║███████╗██║██║ ╚████║
-╚═╝     ╚═╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝╚═╝  ╚═══╝
+# merlin-cli
 
- ██████╗██╗     ██╗
-██╔════╝██║     ██║
-██║     ██║     ██║
-██║     ██║     ██║
-╚██████╗███████╗██║
- ╚═════╝╚══════╝╚═╝
+A small TypeScript CLI framework that **exits non-zero when your command fails.**
 
-Modern CLI framework for TypeScript & Bun
-Type-safe • Minimal boilerplate • Plugin system • Built-in services
-```
-
-## Why?
-
-- **90% less boilerplate** than traditional CLI libraries (Commander.js, yargs, etc.)
-- **Type-safe service registry** with dependency injection out of the box
-- **Lazy command loading** for instant startup times
-- **Built-in validation** with Valibot integration
-- **Plugin system** for extensible functionality
-- **Testing utilities** included - no setup required
-- **Bun-first** with Node.js compatibility
-- **Production-ready** with comprehensive error handling
-
-## Installation
-
-Private package. The `@merlin` scope resolves to `https://npm.private.invalid/` — see
-`dev npmrc` for the scope routing and a value-blind check of your token.
+That sounds like a low bar. It is. Most CLI frameworks clear it only if you
+remember to clear it yourself, in every command, every time — and when you
+forget, the failure is invisible to everything above you.
 
 ```bash
-# Using npm
-npm install @merlin/cli
-
-# Using bun (recommended)
-bun add @merlin/cli
+npm install @light-merlin-dark/merlin-cli
 ```
 
-## Quick Start
+Requires Node 20+. Works under Bun.
 
-Create a production-ready CLI in **under 10 lines**:
+## The problem it solves
 
-```typescript
-import { createCLI, createCommand } from '@merlin/cli';
+Here is a command that reports a failure. Under most frameworks, it exits `0`:
 
-const cli = createCLI({
-  name: 'my-tool',
-  version: '1.0.0',
-  commands: {
-    greet: createCommand({
-      name: 'greet',
-      description: 'Greet someone',
-      examples: ['greet World', 'greet "John Doe" --excited'],
-      execute: ({ args, options }) => {
-        const name = args[0] || 'World';
-        const greeting = options.excited ? `Hello ${name}!!!` : `Hello ${name}`;
-        console.log(greeting);
-      }
-    })
+```ts
+execute: (ctx) => {
+  const zone = findZone(ctx.args[0]);
+  if (!zone) {
+    ctx.registry.get(LoggerToken).error('Zone not found');
+    return;                       // prints an error, tells the shell it worked
   }
-});
-
-cli.run();
-```
-
-Your CLI now includes:
-- ✅ Built-in help command (`my-tool help`)
-- ✅ Version command (`my-tool version`)
-- ✅ Error handling with stack traces
-- ✅ Service registry for dependency injection
-- ✅ TypeScript support with full type safety
-- ✅ Middleware support
-- ✅ Plugin system (optional)
-
-## Key Features
-
-### Type-Safe Service Registry
-
-Built-in dependency injection with compile-time type safety:
-
-```typescript
-import { createToken, LoggerToken } from '@merlin/cli';
-
-// Create custom service tokens
-const DatabaseToken = createToken<Database>('database');
-const CacheToken = createToken<Cache>('cache');
-
-// Register services during bootstrap
-cli.bootstrap = async (registry) => {
-  const db = new Database(process.env.DATABASE_URL);
-  await db.connect();
-  registry.register(DatabaseToken, db);
-
-  registry.register(CacheToken, new RedisCache());
-};
-
-// Use in commands with full type safety
-createCommand({
-  name: 'query',
-  execute: async ({ args, registry }) => {
-    const db = registry.get(DatabaseToken);      // Type: Database
-    const cache = registry.get(CacheToken);      // Type: Cache
-    const logger = registry.get(LoggerToken);    // Type: Logger
-
-    const result = await db.query(args[0]);
-    logger.success(`Query returned ${result.length} rows`);
-  }
-})
-```
-
-### Lightning-Fast Lazy Loading
-
-Load commands only when needed for instant CLI startup:
-
-```typescript
-const cli = createCLI({
-  name: 'my-cli',
-  version: '1.0.0',
-  commands: {
-    // Lazy-loaded commands
-    deploy: () => import('./commands/deploy.ts').then(m => m.default),
-    test: () => import('./commands/test.ts').then(m => m.default),
-    build: () => import('./commands/build.ts').then(m => m.default),
-
-    // Or eagerly loaded
-    version: createVersionCommand({ version: '1.0.0' })
-  }
-});
-```
-
-**Result**: CLI starts in milliseconds, even with 100+ commands
-
-### Built-in Services
-
-#### Logger Service
-
-```typescript
-const logger = registry.get(LoggerToken);
-
-logger.info('Starting deployment...');
-logger.success('✓ Deployment complete!');
-logger.error('✗ Deployment failed');
-logger.warn('⚠ Resource usage high');
-logger.debug('Detailed debug info');  // Only with --verbose
-```
-
-#### Prompter Service
-
-```typescript
-const prompter = registry.get(PrompterToken);
-
-// Confirmation
-const confirmed = await prompter.confirm('Delete database?', false);
-
-// Text input
-const name = await prompter.text('Enter project name:', {
-  validate: (value) => value.length > 0
-});
-
-// Selection
-const env = await prompter.select('Choose environment:', [
-  { title: 'Production', value: 'prod' },
-  { title: 'Staging', value: 'staging' },
-  { title: 'Development', value: 'dev' }
-]);
-
-// Multi-select
-const features = await prompter.multiselect('Select features:', [
-  { title: 'Authentication', value: 'auth', selected: true },
-  { title: 'Database', value: 'db' },
-  { title: 'Cache', value: 'cache' }
-]);
-```
-
-### Valibot Integration
-
-Built-in validation with Valibot for type-safe schemas:
-
-```typescript
-import { createCommand, validate, string, minLength, email } from '@merlin/cli';
-
-createCommand({
-  name: 'create-user',
-  execute: async ({ args, options }) => {
-    // Validate with Valibot schemas
-    const username = validate(
-      pipe(string(), minLength(3)),
-      args[0],
-      'username'
-    );
-
-    const userEmail = validate(
-      email(),
-      options.email,
-      'email'
-    );
-
-    // Create user...
-  }
-})
-```
-
-### Subcommands Made Easy
-
-Create nested command hierarchies:
-
-```typescript
-createCommand({
-  name: 'docker',
-  description: 'Docker management commands',
-  subcommands: {
-    ps: createCommand({
-      name: 'ps',
-      description: 'List containers',
-      execute: () => {
-        // List containers
-      }
-    }),
-    logs: createCommand({
-      name: 'logs',
-      description: 'View container logs',
-      execute: ({ args }) => {
-        const container = args[0];
-        // Show logs
-      }
-    })
-  }
-});
-
-// Usage: my-cli docker ps
-// Usage: my-cli docker logs my-container
-```
-
-### Middleware System
-
-Add validation, logging, authentication, or any cross-cutting concerns:
-
-```typescript
-import type { Middleware } from '@merlin/cli';
-
-// Authentication middleware
-const authMiddleware: Middleware = async (context, spec, next) => {
-  const token = process.env.AUTH_TOKEN;
-  if (!token) {
-    throw new Error('Authentication required: Set AUTH_TOKEN environment variable');
-  }
-
-  // Verify token...
-  await next();
-};
-
-// Logging middleware
-const loggingMiddleware: Middleware = async (context, spec, next) => {
-  const start = performance.now();
-  console.log(`[${spec.name}] Starting...`);
-
-  await next();
-
-  const duration = performance.now() - start;
-  console.log(`[${spec.name}] Completed in ${duration.toFixed(2)}ms`);
-};
-
-// Apply middleware
-createCommand({
-  name: 'deploy',
-  middleware: [authMiddleware, loggingMiddleware],
-  execute: async () => {
-    // Deploy logic
-  }
-})
-```
-
-### Custom Routing
-
-Implement custom command routing logic:
-
-```typescript
-const cli = createCLI({
-  name: 'git-tool',
-  version: '1.0.0',
-  customRouter: (args) => {
-    // Custom routing logic
-    if (args[0] === 'commit' && args.includes('-m')) {
-      return {
-        command: 'commit',
-        args: args.slice(1),
-        skipNormalRouting: true
-      };
-    }
-    return null; // Fall back to normal routing
-  }
-});
-```
-
-### Plugin System
-
-Extend your CLI with plugins:
-
-```typescript
-// Enable plugins
-const cli = createCLI({
-  name: 'my-cli',
-  version: '1.0.0',
-  plugins: {
-    enabled: true,
-    autoLoad: true,           // Auto-load from node_modules
-    allowLocal: true,         // Load from local directories
-    searchPaths: ['./plugins']
-  }
-});
-
-// Create a plugin: plugins/database-plugin.ts
-import type { Plugin } from '@merlin/cli';
-
-export default {
-  name: 'database',
-  version: '1.0.0',
-  description: 'Database management plugin',
-
-  // Register services
-  services: [{
-    token: DatabaseToken,
-    factory: () => new Database(),
-    lifecycle: 'singleton'
-  }],
-
-  // Add commands
-  commands: {
-    'db:migrate': createCommand({
-      name: 'db:migrate',
-      description: 'Run database migrations',
-      async execute({ registry }) {
-        const db = registry.get(DatabaseToken);
-        await db.migrate();
-      }
-    })
-  },
-
-  // Lifecycle hooks
-  hooks: {
-    beforeInit: async () => console.log('Database plugin initializing...'),
-    afterInit: async () => console.log('Database plugin ready'),
-    beforeCommand: async (cmd) => console.log(`Running ${cmd}`),
-    afterCommand: async (cmd) => console.log(`Completed ${cmd}`)
-  }
-} satisfies Plugin;
-```
-
-## Testing
-
-Built-in testing utilities for easy CLI testing:
-
-```typescript
-import { describe, it, expect } from 'bun:test';
-import { createTestHarness, captureOutput } from '@merlin/cli';
-
-describe('my-cli', () => {
-  it('should greet user', async () => {
-    const harness = createTestHarness(cli);
-
-    const output = await captureOutput(async () => {
-      await harness.run(['greet', 'Alice']);
-    });
-
-    expect(output).toContain('Hello Alice');
-  });
-
-  it('should handle errors gracefully', async () => {
-    const harness = createTestHarness(cli);
-
-    await expect(
-      harness.run(['unknown-command'])
-    ).rejects.toThrow('Unknown command');
-  });
-});
-```
-
-## Advanced Usage
-
-### Error Handling
-
-```typescript
-const cli = createCLI({
-  name: 'my-cli',
-  version: '1.0.0',
-  onError: async (error, context) => {
-    const logger = context.registry?.get(LoggerToken);
-
-    if (error.code === 'EACCES') {
-      logger?.error('Permission denied. Try running with sudo.');
-    } else if (error.code === 'ENOENT') {
-      logger?.error(`File not found: ${error.path}`);
-    } else {
-      logger?.error(`Error: ${error.message}`);
-    }
-  },
-  onBeforeRoute: async (context) => {
-    // Log all commands
-    console.log(`Executing: ${context.commandName}`);
-  },
-  onAfterRoute: async (context) => {
-    // Cleanup or analytics
-  }
-});
-```
-
-### Smart Release Automation
-
-Built-in release automation for NPM packages:
-
-```typescript
-import { SmartRelease } from '@merlin/cli';
-
-const release = new SmartRelease({
-  packageName: '@my-org/my-cli',
-  registryUrl: 'https://registry.npmjs.org/',
-  autoCommit: true,
-  autoPush: true,
-  tagRelease: true
-});
-
-await release.run();
-```
-
-### Progress Indicators
-
-Built-in progress indicators for long-running operations:
-
-```typescript
-import { createSpinner, createProgressBar } from '@merlin/cli';
-
-// Spinner
-const spinner = createSpinner('Loading data...');
-spinner.start();
-await fetchData();
-spinner.succeed('Data loaded!');
-
-// Progress bar
-const bar = createProgressBar({
-  total: 100,
-  format: 'Progress: {bar} {percentage}% | {value}/{total}'
-});
-
-for (let i = 0; i <= 100; i++) {
-  bar.update(i);
-  await sleep(10);
+  ...
 }
-bar.complete();
 ```
 
-## Examples
+The user sees red text and assumes it failed. `$?` is `0`. So the `&&` in the
+next line of the script runs anyway, CI goes green, and an agent reading the
+exit code reports success. The error message and the exit code disagree, and
+only one of them is machine-readable.
 
-See the [examples](./examples) directory for complete working examples:
+merlin-cli treats **both** channels as real:
 
-- **[Basic CLI](./examples/basic-example.ts)** - Simple todo list manager
-- **[API Client](./examples/api-client-example.ts)** - REST API client with CRUD operations
-- **[Database Migrations](./examples/db-migration-example.ts)** - SQL migration tool
-- **[Plugin System](./examples/plugin-example.ts)** - CLI with plugin support
-- **[Arguments & Options](./examples/args-example.ts)** - Advanced argument handling
-- **[Subcommands](./examples/subcommand-example.ts)** - Nested command hierarchies
+| Your command | Exit code |
+|---|---|
+| returns `undefined`, data, a string, an array | `0` |
+| returns `{ success: true }` | `0` |
+| returns `{ success: false }` | `1` |
+| returns `{ exitCode: n }` | `n` |
+| throws | `1` |
+| **calls `logger.error(...)`, whatever it returns** | `1` |
 
-## API Reference
+That last row is the one other frameworks can't see, because it isn't in the
+return value. If a command told the user it failed, it failed.
 
-### Core Functions
+Need a command that reports a non-fatal error and still succeeds? Opt out
+explicitly, per CLI:
 
-#### `createCLI(config: CLIConfig): CLI`
-Creates a new CLI instance with the specified configuration.
-
-#### `createCommand(spec: CommandSpec): CommandDefinition`
-Creates a type-safe command with validation and middleware support.
-
-#### `createToken<T>(name: string): Token<T>`
-Creates a type-safe token for the service registry.
-
-### Built-in Tokens
-
-- **`LoggerToken`** - Logger service for console output
-- **`ConfigToken`** - CLI configuration object
-- **`PrompterToken`** - Interactive prompts service
-
-### Validation
-
-All Valibot functions are re-exported for convenience:
-- `validate()` - Validate with custom error handling
-- `string()`, `number()`, `boolean()`, `array()`, `object()` - Type validators
-- `minLength()`, `maxLength()`, `minValue()`, `maxValue()` - Value constraints
-- `email()`, `url()`, `regex()` - Format validators
-- `pipe()`, `union()`, `optional()`, `nullable()` - Composition helpers
-
-See [Valibot documentation](https://valibot.dev/) for complete API.
-
-## Best Practices
-
-1. **Use lazy loading** - Load commands on-demand for faster startup
-2. **Leverage the service registry** - Avoid global state and singletons
-3. **Provide rich examples** - At least 2-3 diverse examples per command
-4. **Use Valibot for validation** - Type-safe schemas with excellent error messages
-5. **Test thoroughly** - Use the built-in testing utilities
-6. **Handle errors gracefully** - Provide actionable error messages
-7. **Use middleware wisely** - Keep middleware focused and composable
-
-## Migration Guide
-
-### From Commander.js
-
-**Before (Commander.js):**
-```typescript
-import { Command } from 'commander';
-
-const program = new Command();
-
-program
-  .name('my-tool')
-  .version('1.0.0')
-  .description('My CLI tool');
-
-program
-  .command('greet <name>')
-  .option('-e, --excited', 'Add excitement')
-  .action((name, options) => {
-    const greeting = options.excited ? `Hello ${name}!!!` : `Hello ${name}`;
-    console.log(greeting);
-  });
-
-program.parse();
+```ts
+createCLI({ name: 'mycli', version: '1.0.0', errorExitPolicy: 'off', commands })
 ```
 
-**After (Merlin CLI):**
-```typescript
-import { createCLI, createCommand } from '@merlin/cli';
+## Quick start
 
-const cli = createCLI({
-  name: 'my-tool',
-  version: '1.0.0',
-  commands: {
-    greet: createCommand({
-      name: 'greet',
-      execute: ({ args, options }) => {
-        const name = args[0];
-        const greeting = options.excited ? `Hello ${name}!!!` : `Hello ${name}`;
-        console.log(greeting);
-      }
-    })
+```ts
+#!/usr/bin/env node
+import { createCLI, createCommand, LoggerToken } from '@light-merlin-dark/merlin-cli';
+
+const greet = createCommand({
+  name: 'greet',
+  description: 'Greet someone by name',
+  execute: (ctx) => {
+    const logger = ctx.registry.get(LoggerToken);
+    const name = ctx.args[0];
+
+    if (!name) {
+      logger.error('Who am I greeting?');
+      return;                     // exits 1 — no boilerplate required
+    }
+
+    logger.success(`Hello, ${name}!`);
   }
 });
 
-cli.run();
+await createCLI({
+  name: 'mycli',
+  version: '1.0.0',
+  commands: { greet }
+}).run();
 ```
 
-**Benefits**: Type safety, service registry, lazy loading, middleware support, plugin system
+```console
+$ mycli greet merlin
+[SUCCESS] Hello, merlin!
+$ echo $?
+0
 
-## Performance
+$ mycli greet
+[ERROR] Who am I greeting?
+$ echo $?
+1
+```
 
-Benchmarks against popular CLI frameworks:
+`help` and `version` are registered for you.
 
-| Framework | Startup Time | Memory Usage | LOC for Basic CLI |
-|-----------|--------------|--------------|-------------------|
-| Merlin CLI | **8ms** | **12MB** | **10 lines** |
-| Commander.js | 15ms | 18MB | 25 lines |
-| yargs | 45ms | 32MB | 35 lines |
-| oclif | 120ms | 45MB | 50+ lines |
+## The API
 
-*Benchmarks run on Node.js 20 with Bun 1.2+*
+Eleven exports, and you will mostly use four.
 
-## Requirements
+### `createCLI(config)`
 
-- **Node.js** 20.0.0 or higher
-- **Bun** 1.2.0 or higher (recommended)
-- **TypeScript** 5.0.0 or higher (for development)
+Builds the CLI. `run(args?)` routes `process.argv.slice(2)` by default and
+resolves with the exit code it derived.
+
+```ts
+const cli = createCLI({
+  name: 'mycli',
+  version: '1.0.0',
+  description: 'What this tool does',
+  commands: { greet, deploy },
+
+  // Optional
+  defaultCommand: 'greet',        // used when argv[0] matches no command
+  errorExitPolicy: 'strict',      // 'off' to ignore logger.error (default 'strict')
+  exitProcess: true,              // false to resolve the code without exiting
+  middleware: [timing],
+  onError: async (err, ctx) => { /* report it; the command still fails */ }
+});
+
+await cli.run();
+```
+
+Set `exitProcess: false` when you own the process lifecycle — embedding the CLI,
+or testing it. `run()` then returns the code instead of exiting.
+
+### `createCommand(spec)`
+
+```ts
+const deploy = createCommand({
+  name: 'deploy',
+  description: 'Deploy the current branch',
+  aliases: ['d'],
+  args: { target: { type: 'string', required: true, description: 'Environment' } },
+  options: { force: { type: 'boolean', description: 'Skip confirmation' } },
+  examples: ['mycli deploy staging', 'mycli deploy prod --force'],
+  execute: async (ctx) => {
+    // ctx.args     — positional arguments
+    // ctx.options  — parsed flags
+    // ctx.registry — service registry
+  }
+});
+```
+
+Declared `args` and `options` are validated before `execute` runs.
+
+### `createToken(key)` and the registry
+
+Dependency injection with no container and no decorators. A token is a typed key.
+
+```ts
+import { createToken } from '@light-merlin-dark/merlin-cli';
+
+const ApiToken = createToken<ApiClient>('api');
+
+const cli = createCLI({ /* ... */ });
+cli.registry.register(ApiToken, new ApiClient(process.env.API_KEY));
+
+// Inside any command — the type comes back with it:
+const api = ctx.registry.get(ApiToken);
+```
+
+Built in: `LoggerToken`, `PrompterToken`, `ConfigToken`.
+
+```ts
+const logger = ctx.registry.get(LoggerToken);
+logger.info('...'); logger.success('...'); logger.warn('...');
+logger.debug('...');   // only with --verbose
+logger.error('...');   // also fails the command
+
+const prompter = ctx.registry.get(PrompterToken);
+if (await prompter.confirm('Deploy to production?')) { /* ... */ }
+```
+
+### Subcommands and lazy loading
+
+Nest commands, and load them only when called — startup stays flat as the CLI grows:
+
+```ts
+const cli = createCLI({
+  name: 'mycli',
+  version: '1.0.0',
+  commands: {
+    dns: {
+      name: 'dns',
+      description: 'Manage DNS records',
+      subcommands: {
+        add:  { name: 'add',  description: 'Add a record',  execute: addRecord },
+        list: { name: 'list', description: 'List records', execute: listRecords }
+      }
+    },
+    // Imported on first use, not at startup
+    migrate: () => import('./commands/migrate.js').then(m => m.default)
+  }
+});
+```
+
+### Testing
+
+```ts
+import { createTestHarness } from '@light-merlin-dark/merlin-cli';
+
+const harness = createTestHarness({ greet });
+await harness.runCommand('greet', ['merlin']);
+expect(harness.getOutput()).toContain('Hello, merlin!');
+```
+
+`createMockLogger`, `createMockPrompter` and `mockRegistry` are also exported.
+
+### Also exported
+
+`colors` and `createProgress` for terminal output, `createLogger` and
+`createPrompter` to build services yourself, `CommandRouter`, `ServiceRegistry`,
+and `resolveExitCode` if you want the exit-code rule without the framework.
+
+Types: `Command`, `CommandDefinition`, `CommandContext`, `OptionSpec`, `ArgSpec`,
+`CLIConfig`, `Middleware`, `Logger`, `Prompter`, `Token`.
+
+## Why the tests look the way they do
+
+`tests/conformance/` runs against the **built artifact** in a real child
+process — it packs the tarball, unpacks it, imports it under plain Node, and
+asserts on the process exit status a shell would actually see.
+
+That is not belt-and-braces. This package once shipped a 65 KB stub: a
+`"sideEffects": false` flag let the bundler tree-shake the router, the CLI
+entry point and the exit-code module out of the bundle while leaving their
+names in the export list. The build exited `0`. The source test suite was
+green. Every test passed against code that wasn't in the box.
+
+A green source suite is not evidence about a tarball, and a return value
+inside a test runner is not evidence about an exit code. So the tests assert
+the artifact.
+
+## Contributing
+
+Issues and pull requests are welcome.
+
+```bash
+bun install
+bun test                  # everything
+bun run test:conformance  # the artifact-level contract
+```
+
+If you change behaviour a consumer can observe, add the assertion to
+`tests/conformance/` — that directory is the contract.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
-
----
-
-**Built by [Robert E. Beckner III (Merlin)](https://rbeckner.com)**
-
-**Powered by**: TypeScript • Bun • Valibot • Picocolors
+MIT © Robert E. Beckner III

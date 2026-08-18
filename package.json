@@ -1,20 +1,19 @@
 {
-  "name": "@merlin/cli",
-  "version": "1.1.0",
-  "description": "Blazingly fast CLI - Minimalware, Type-safe DI, Plugins!",
+  "name": "@light-merlin-dark/merlin-cli",
+  "version": "1.2.0",
+  "description": "A small TypeScript CLI framework that exits non-zero when your command fails.",
   "keywords": [
     "cli",
     "cli-framework",
     "command-line",
     "typescript",
     "bun",
+    "node",
+    "exit-code",
     "dependency-injection",
-    "plugin-system",
     "service-registry",
     "middleware",
     "lazy-loading",
-    "valibot",
-    "validation",
     "testing",
     "commander-alternative",
     "type-safe"
@@ -34,15 +33,14 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
   "publishConfig": {
-    "access": "restricted",
-    "registry": "https://npm.private.invalid/"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "files": [
     "dist/**/*",
@@ -64,15 +62,12 @@
     "bun": ">=1.2.0"
   },
   "dependencies": {
-    "@types/node": "^20.0.0",
     "picocolors": "^1.0.0",
-    "prompts": "^2.4.2",
-    "valibot": "^1.1.0"
+    "prompts": "^2.4.2"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "@types/prompts": "^2.4.9",
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
     "bun-types": "latest",
     "typescript": "^5.0.0"
   },

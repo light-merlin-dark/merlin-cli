@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0]
+
+Open source, and a third of the code gone. Published as
+`@light-merlin-dark/merlin-cli` on npmjs.org, continuing the public 1.0.8
+lineage; the private `@merlin/cli` name is retired.
+
+### Fixed — `logger.error(...)` followed by a bare `return` exited 0
+
+1.1.0 made a returned `{ success: false }` exit non-zero, but it reads the
+command's *return value*, so it was blind to the other way a command reports
+failure:
+
+```ts
+logger.error('Zone not found');
+return;                            // red text, exit code 0
+```
+
+cf-cli alone had sixteen of these. Auditing every consumer forever is not a
+fix, so the framework catches it: the logger counts the errors it reported, and
+a command that logged one has failed regardless of what it returned. Opt out
+with `errorExitPolicy: 'off'`.
+
+The count hangs off a `Symbol` rather than a named method, because `Logger` is a
+public interface consumers implement themselves — a required member would break
+every one of those. A hand-rolled logger keeps no count and falls back to the
+old behaviour.
+
+### Fixed — `require()` of this package threw
+
+`exports` promised a CommonJS build at `./dist/index.cjs` that the build script
+never produced. The map now describes what is actually in the tarball, and a
+conformance test walks it.
+
+### Removed
+
+- **`SmartRelease`** — release orchestration in a CLI framework. Consumers
+  vendor their own; `m-cli` already did.
+- **The plugin system** (313 lines) — no consumer ever loaded a plugin. The
+  `plugins` config key is still accepted and ignored so existing
+  `plugins: { enabled: false }` keeps compiling.
+- **`utils/errors.ts`, `utils/formatting.ts`, `utils/validation.ts`** (706
+  lines, ~60 exported symbols) — not one imported by any consumer.
+  `validation.ts` also exported a second `validateOptions` that collided with
+  the middleware of the same name; `export *` made the winner arbitrary.
+- **`valibot`** — a declared dependency with zero imports, which the README
+  advertised. Every consumer was installing it for nothing.
+
+`@types/node` moved from `dependencies` to `devDependencies`.
+
+### Added — `tests/conformance/`
+
+Runs against the built artifact in a real child process: packs the tarball,
+unpacks it, imports it under plain Node, and asserts on the process exit status
+a shell would see. `prepublishOnly` runs it, so the artifact is proven before
+publish rather than after it breaks someone.
+
+Four defects in two days were all the same species — no test asserted the
+contract. A fifth turned up while writing these: `tests/unit/subcommands.test.ts`
+asserted that `run()` *throws* on an unknown subcommand. It doesn't; it exits.
+So the file killed the test runner partway through, silently took every later
+test file with it, and the suite still reported success. Its six tests now run.
+
 ## [1.1.0]
 
 Minor, not patch: exit codes change for any command that reported failure by
