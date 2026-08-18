@@ -38,9 +38,11 @@ no-op for most real CLIs — so registration is intercepted, and any logger
 landing under `LoggerToken` is wrapped with counting. The wrapper is a `Proxy`:
 your methods, properties and `this` binding are untouched.
 
-**Known limit:** `console.error` is invisible to this. Commands that report
-failure with `console.error` and return still exit 0. Route them through the
-logger, or call `process.exit(1)`.
+**Known limits.** The rule hooks *registration*, so two things stay invisible to
+it: `console.error(...)`, and a logger your modules import directly instead of
+resolving from the registry — never registered, never counted. Commands that
+report failure either way still exit 0. Resolve the logger from `ctx.registry`
+(or register your own under `LoggerToken`) to get the guarantee.
 
 ### Changed — `validateOptions` and `logExecution` are no longer top-level exports
 

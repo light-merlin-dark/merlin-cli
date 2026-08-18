@@ -59,11 +59,21 @@ the whole CLI out to protect one mislabelled line also discards the rule
 everywhere it was doing its job.
 
 **What this can and cannot see.** It counts errors on whatever logger is
-registered under `LoggerToken`, including one you register yourself — your
-logger is wrapped so its own methods and behaviour are untouched. It does
-**not** see `console.error`. If your commands report failures with
-`console.error` and then return, they will still exit 0; route them through the
-logger, or call `process.exit(1)` yourself.
+**registered under `LoggerToken`**, including one you register yourself — your
+logger is wrapped, so its own methods and behaviour are untouched.
+
+It cannot see either of these:
+
+- `console.error(...)`. A command that reports failure that way and returns will
+  still exit 0.
+- A logger your modules import directly instead of resolving from the registry.
+  The rule hooks registration, so a logger that is never registered is never
+  counted, however many errors it reports.
+
+Both have the same fix: resolve the logger from `ctx.registry` so the framework
+is in the loop — or call `process.exit(1)` yourself. If you want the guarantee
+and you already have your own logger, register it under `LoggerToken` at
+startup; you keep your logger, and failures stop exiting 0.
 
 ## Quick start
 
