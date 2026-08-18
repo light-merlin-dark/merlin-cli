@@ -30,12 +30,15 @@ Type-safe • Minimal boilerplate • Plugin system • Built-in services
 
 ## Installation
 
+Private package. The `@merlin` scope resolves to `https://npm.private.invalid/` — see
+`dev npmrc` for the scope routing and a value-blind check of your token.
+
 ```bash
 # Using npm
-npm install @light-merlin-dark/merlin-cli
+npm install @merlin/cli
 
 # Using bun (recommended)
-bun add @light-merlin-dark/merlin-cli
+bun add @merlin/cli
 ```
 
 ## Quick Start
@@ -43,7 +46,7 @@ bun add @light-merlin-dark/merlin-cli
 Create a production-ready CLI in **under 10 lines**:
 
 ```typescript
-import { createCLI, createCommand } from '@light-merlin-dark/merlin-cli';
+import { createCLI, createCommand } from '@merlin/cli';
 
 const cli = createCLI({
   name: 'my-tool',
@@ -81,7 +84,7 @@ Your CLI now includes:
 Built-in dependency injection with compile-time type safety:
 
 ```typescript
-import { createToken, LoggerToken } from '@light-merlin-dark/merlin-cli';
+import { createToken, LoggerToken } from '@merlin/cli';
 
 // Create custom service tokens
 const DatabaseToken = createToken<Database>('database');
@@ -179,7 +182,7 @@ const features = await prompter.multiselect('Select features:', [
 Built-in validation with Valibot for type-safe schemas:
 
 ```typescript
-import { createCommand, validate, string, minLength, email } from '@light-merlin-dark/merlin-cli';
+import { createCommand, validate, string, minLength, email } from '@merlin/cli';
 
 createCommand({
   name: 'create-user',
@@ -238,7 +241,7 @@ createCommand({
 Add validation, logging, authentication, or any cross-cutting concerns:
 
 ```typescript
-import type { Middleware } from '@light-merlin-dark/merlin-cli';
+import type { Middleware } from '@merlin/cli';
 
 // Authentication middleware
 const authMiddleware: Middleware = async (context, spec, next) => {
@@ -312,7 +315,7 @@ const cli = createCLI({
 });
 
 // Create a plugin: plugins/database-plugin.ts
-import type { Plugin } from '@light-merlin-dark/merlin-cli';
+import type { Plugin } from '@merlin/cli';
 
 export default {
   name: 'database',
@@ -354,7 +357,7 @@ Built-in testing utilities for easy CLI testing:
 
 ```typescript
 import { describe, it, expect } from 'bun:test';
-import { createTestHarness, captureOutput } from '@light-merlin-dark/merlin-cli';
+import { createTestHarness, captureOutput } from '@merlin/cli';
 
 describe('my-cli', () => {
   it('should greet user', async () => {
@@ -411,7 +414,7 @@ const cli = createCLI({
 Built-in release automation for NPM packages:
 
 ```typescript
-import { SmartRelease } from '@light-merlin-dark/merlin-cli';
+import { SmartRelease } from '@merlin/cli';
 
 const release = new SmartRelease({
   packageName: '@my-org/my-cli',
@@ -429,7 +432,7 @@ await release.run();
 Built-in progress indicators for long-running operations:
 
 ```typescript
-import { createSpinner, createProgressBar } from '@light-merlin-dark/merlin-cli';
+import { createSpinner, createProgressBar } from '@merlin/cli';
 
 // Spinner
 const spinner = createSpinner('Loading data...');
@@ -529,7 +532,7 @@ program.parse();
 
 **After (Merlin CLI):**
 ```typescript
-import { createCLI, createCommand } from '@light-merlin-dark/merlin-cli';
+import { createCLI, createCommand } from '@merlin/cli';
 
 const cli = createCLI({
   name: 'my-tool',

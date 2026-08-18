@@ -5,9 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0]
 
-### Fixed — exit-code fail-open (behavior change, announce before publishing)
+Minor, not patch: exit codes change for any command that reported failure by
+returning a result. Not major: the one breaking API change since 1.0.6 (the
+Valibot validation swap) is in surface no consumer imports — every consumer in
+the estate imports exactly five symbols, `createCLI`, `ServiceRegistry`,
+`createToken`, `LoggerToken`, `PrompterToken`.
+
+### Fixed — the build silently shipped a dead bundle
+
+`"sideEffects": false` made `bun build` (1.3.14) tree-shake `core/cli.ts`,
+`commands/router.ts`, `core/exit-code.ts` and most of the framework out of the
+bundle while leaving their names in the export list. `bun build` reported
+success with no warning: "Bundled 18 modules" of 33, 65 KB, exit 0. The
+resulting `dist/index.js` could not be imported at all — Node rejects it with
+`SyntaxError: Export 'CommandRouter' is not defined in module`, and `createCLI`
+was likewise absent.
+
+Publishing that artifact would have taken cf-cli and db-cli down completely.
+Pre-existing: the same breakage reproduces on 05b77d9 and on every
+`--target`/`--outfile` combination. The published 1.0.6 `dist` is intact
+because it was built under an older bun.
+
+- Removed `sideEffects: false`. The bundle goes from 18 to 102 modules and
+  imports cleanly with 124 exports.
+- Known, not fixed: `exports.require` points at `./dist/index.cjs`, which the
+  build has never produced. Every consumer is ESM, so nothing is broken today.
+
+### Changed — back to a single private name
+
+The package was renamed to `@light-merlin-dark/merlin-cli` and published to
+public npm on 2025-11-13 (1.0.7 and 1.0.8, sixty-six seconds apart) and never
+touched again. It gathered 1 star, 0 forks and ~6 downloads/month, while the
+whole estate kept consuming `@merlin/cli@1.0.6` from `npm.private.invalid`. The split
+meant a fix in this repo could not reach a single consumer.
+
+- Name is `@merlin/cli` again; `publishConfig` points at `https://npm.private.invalid/`
+  with restricted access. Consumers on `latest` need no change.
+- `publish:public` script replaced by `publish:private`.
+- The public `@light-merlin-dark/merlin-cli` versions are superseded.
+
+### Fixed — exit-code fail-open (behavior change)
 
 `createCLI(...).run()` discarded whatever the command returned and exited 0
 unconditionally. Any command signalling failure by returning a result — the
