@@ -2,6 +2,12 @@
 export { ServiceRegistry, createRegistry } from './core/registry.ts';
 export { bootstrap, type BootstrapConfig } from './core/bootstrap.ts';
 export { createCLI, type CLI } from './core/cli.ts';
+export {
+  resolveExitCode,
+  isFailureResult,
+  GENERIC_FAILURE_EXIT_CODE,
+  type CommandResult
+} from './core/exit-code.ts';
 
 // Command system exports
 export {

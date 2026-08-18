@@ -22,7 +22,7 @@ export class CommandRouter {
     private routingOptions?: {
       customRouter?: (args: string[]) => CustomRouterResult | null;
       defaultCommand?: string;
-      defaultHandler?: (context: { args: string[]; options: Record<string, any> }) => Promise<void> | void;
+      defaultHandler?: (context: { args: string[]; options: Record<string, any> }) => Promise<unknown> | unknown;
       beforeExecute?: (context: { command: string; args: string[]; options: Record<string, any> }) => { command: string; args: string[]; options: Record<string, any> } | null;
     }
   ) {}
@@ -31,7 +31,12 @@ export class CommandRouter {
     this.middleware.push(middleware);
   }
 
-  async route(args: string[]): Promise<void> {
+  /**
+   * Route and execute. Returns whatever the command returned so the caller can
+   * derive an exit code from it — discarding it here is what made returned
+   * failures exit 0.
+   */
+  async route(args: string[]): Promise<unknown> {
     let [commandName = 'help', ...restArgs] = args;
     let context: RouteContext = {
       commandName,
@@ -61,8 +66,7 @@ export class CommandRouter {
             // Use custom routing result directly
             const commandDef = this.commands[commandName];
             if (commandDef) {
-              await this.executeCommand(commandDef, commandName, restArgs, context);
-              return;
+              return await this.executeCommand(commandDef, commandName, restArgs, context);
             }
           }
         }
@@ -93,16 +97,16 @@ export class CommandRouter {
             }
           } else if (this.routingOptions?.defaultHandler) {
             // Execute default handler directly
-            await this.routingOptions.defaultHandler({
+            const handlerResult = await this.routingOptions.defaultHandler({
               args: args,
               options: this.parseOptions(args)
             });
-            
+
             // After route hook
             if (this.hooks?.onAfterRoute) {
               await this.hooks.onAfterRoute(context);
             }
-            return;
+            return handlerResult;
           } else {
             throw new Error(`Unknown command: ${commandName}`);
           }
@@ -163,16 +167,22 @@ export class CommandRouter {
         }
       }
 
-      await this.executeCommand(commandDef, commandName, remainingArgs, context, subcommandPath);
+      const result = await this.executeCommand(commandDef, commandName, remainingArgs, context, subcommandPath);
 
       // After route hook
       if (this.hooks?.onAfterRoute) {
         await this.hooks.onAfterRoute(context);
       }
+
+      return result;
     } catch (error) {
       // Error hook
       if (this.hooks?.onError) {
         await this.hooks.onError(error as Error, context);
+
+        // The hook consumed the error, but the command still failed. Report a
+        // failure result so the caller cannot exit 0 on a handled error.
+        return { success: false, error: error as Error };
       } else {
         throw error;
       }
@@ -227,7 +237,7 @@ export class CommandRouter {
     remainingArgs: string[],
     context: RouteContext,
     subcommandPath: string[] = [commandName]
-  ): Promise<void> {
+  ): Promise<unknown> {
     // Resolve lazy-loaded command if needed
     let resolvedCommand = commandDef;
     if (typeof resolvedCommand === 'function') {
@@ -258,10 +268,16 @@ export class CommandRouter {
       }
     }
 
-    // Apply middleware chain
-    const executeWithMiddleware = async () => {
+    // Apply middleware chain.
+    //
+    // The command's return value is captured in a closure rather than read off
+    // `next()`. Middleware is publicly typed `next: () => Promise<void>` and
+    // does not forward what the command returned, so widening that signature
+    // would break every existing middleware's types for no gain.
+    const executeWithMiddleware = async (): Promise<unknown> => {
       let index = 0;
-      
+      let commandResult: unknown;
+
       const next = async (): Promise<void> => {
         if (index < this.middleware.length) {
           const currentMiddleware = this.middleware[index++];
@@ -270,13 +286,15 @@ export class CommandRouter {
           if (!resolvedCommand.execute) {
             throw new Error(`Command '${subcommandPath.join(' ')}' requires a subcommand`);
           }
-          await resolvedCommand.execute(commandContext);
+          commandResult = await resolvedCommand.execute(commandContext);
         }
       };
-      
+
       await next();
+
+      return commandResult;
     };
 
-    await executeWithMiddleware();
+    return await executeWithMiddleware();
   }
 }

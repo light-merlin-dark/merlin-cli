@@ -33,7 +33,7 @@ export interface CLIConfig {
   description?: string;
   customRouter?: (args: string[]) => CustomRouterResult | null;
   defaultCommand?: string;
-  defaultHandler?: (context: { args: string[]; options: Record<string, any> }) => Promise<void> | void;
+  defaultHandler?: (context: { args: string[]; options: Record<string, any> }) => Promise<unknown> | unknown;
   beforeExecute?: (context: { command: string; args: string[]; options: Record<string, any> }) => { command: string; args: string[]; options: Record<string, any> } | null;
 }
 

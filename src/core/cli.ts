@@ -1,5 +1,6 @@
 import { LoggerToken, ConfigToken, PrompterToken, createRegistry } from './registry.ts';
 import { bootstrap } from './bootstrap.ts';
+import { resolveExitCode } from './exit-code.ts';
 import type { 
   CLIConfig, 
   CommandDefinition, 
@@ -16,7 +17,13 @@ import { PluginIntegration } from '../plugins/integration.ts';
 
 export interface CLI {
   name: string;
-  run(args?: string[]): Promise<void>;
+  /**
+   * Execute a command. Resolves with the process exit code it derived from the
+   * command's return value: 0 for success, non-zero for a failure result. When
+   * `config.exitProcess` is not `false` a non-zero code also calls
+   * `process.exit()`, so the resolved value is only observable in that mode.
+   */
+  run(args?: string[]): Promise<number>;
   registry: ServiceRegistry;
   router: CommandRouter;
   commands: Record<string, CommandDefinition>;
@@ -78,7 +85,9 @@ export function createCLI(config: CLIConfig): CLI {
   const cli: CLI = {
     name: config.name,
     
-    async run(args: string[] = process.argv.slice(2)): Promise<void> {
+    async run(args: string[] = process.argv.slice(2)): Promise<number> {
+      const shouldExitProcess = config.exitProcess !== false;
+
       try {
         await bootstrap({ registry });
 
@@ -100,23 +109,39 @@ export function createCLI(config: CLIConfig): CLI {
           await cli.plugins.runBeforeCommandHooks(commandName);
         }
 
-        await router.route(args);
+        const result = await router.route(args);
 
         // Run plugin afterCommand hooks
         if (cli.plugins) {
           await cli.plugins.runAfterCommandHooks(commandName);
         }
 
+        // A command that returns `{ success: false }` (or an explicit
+        // exitCode) has failed. Honour that: discarding it here is what let
+        // failed commands print an error and still exit 0.
+        const exitCode = resolveExitCode(result);
+
         // Allow event loop to complete before exiting
         // This ensures all async I/O operations (console.log, etc.) complete
         await new Promise(resolve => setImmediate(resolve));
+
+        if (exitCode !== 0 && shouldExitProcess) {
+          process.exit(exitCode);
+        }
+
+        return exitCode;
       } catch (error) {
         const logger = registry.get(LoggerToken);
         logger.error(`Fatal error: ${error}`);
 
         // Allow error logging to complete before exit
         await new Promise(resolve => setImmediate(resolve));
-        process.exit(1);
+
+        if (shouldExitProcess) {
+          process.exit(1);
+        }
+
+        return 1;
       }
     },
 

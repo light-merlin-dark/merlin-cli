@@ -29,8 +29,14 @@ export interface CLIConfig {
   // Custom routing options
   customRouter?: (args: string[]) => CustomRouterResult | null;
   defaultCommand?: string;
-  defaultHandler?: (context: { args: string[]; options: Record<string, any> }) => Promise<void> | void;
+  defaultHandler?: (context: { args: string[]; options: Record<string, any> }) => Promise<unknown> | unknown;
   beforeExecute?: (context: { command: string; args: string[]; options: Record<string, any> }) => { command: string; args: string[]; options: Record<string, any> } | null;
+  /**
+   * Call `process.exit()` when the command reports failure. Defaults to `true`.
+   * Set `false` to have `run()` resolve with the exit code instead — used by
+   * tests and by embedders that own their own process lifecycle.
+   */
+  exitProcess?: boolean;
   // Plugin configuration
   plugins?: {
     enabled?: boolean;
