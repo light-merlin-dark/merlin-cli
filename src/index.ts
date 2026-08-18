@@ -44,12 +44,3 @@ export * from './types/index.ts';
 
 // Testing utilities
 export * from './testing/index.ts';
-
-// Plugin system
-export { 
-  type Plugin, 
-  type PluginManifest,
-  type LoadedPlugin,
-  PluginLoader,
-  PluginIntegration 
-} from './plugins/index.ts';

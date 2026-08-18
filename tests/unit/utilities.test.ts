@@ -1,82 +1,23 @@
 import { describe, test, expect } from 'bun:test';
 import {
-  // Error utilities
-  CLIError,
-  ValidationError,
-  CommandNotFoundError,
-  handleError,
-  assertDefined,
-  
-  // Color utilities
   colors,
   stripColors,
   colorize,
   table,
   box,
-  
-  // Formatting utilities
-  indent,
-  dedent,
-  wrap,
-  truncate,
-  center,
-  formatDuration,
-  formatBytes,
-  humanize,
-  slugify,
-  
-  // Validation utilities
-  createValidator,
-  required,
-  string,
-  number,
-  minLength,
-  pattern,
-  oneOf,
-  validateOptions,
-  
-  // Progress utilities
   createProgress,
   ProgressBar,
   withProgress,
-  
-  // Testing utilities
   createMockLogger,
   createMockPrompter,
   mockRegistry,
-  runCommand,
   createTestHarness,
   expectError
 } from '../../src/index.ts';
 
-describe('Error Utilities', () => {
-  test('CLIError creates proper error with exit code', () => {
-    const error = new CLIError('Test error', 'TEST_ERROR', 42);
-    expect(error.message).toBe('Test error');
-    expect(error.code).toBe('TEST_ERROR');
-    expect(error.exitCode).toBe(42);
-    expect(error.name).toBe('CLIError');
-  });
-  
-  test('ValidationError includes field information', () => {
-    const error = new ValidationError('Invalid value', 'username');
-    expect(error.message).toBe('Invalid value');
-    expect(error.field).toBe('username');
-    expect(error.code).toBe('VALIDATION_ERROR');
-  });
-  
-  test('CommandNotFoundError includes available commands', () => {
-    const error = new CommandNotFoundError('foo', ['bar', 'baz']);
-    expect(error.message).toBe('Command "foo" not found');
-    expect(error.availableCommands).toEqual(['bar', 'baz']);
-  });
-  
-  test('assertDefined throws on null/undefined', () => {
-    expectError(() => assertDefined(null, 'Value required'), ValidationError);
-    expectError(() => assertDefined(undefined, 'Value required'), ValidationError);
-    expect(() => assertDefined('value', 'Value required')).not.toThrow();
-  });
-});
+// The error, formatting and validation helpers this file used to cover were
+// removed in 1.2.0 — 706 lines that no consumer imported. What remains is what
+// the estate actually uses: colors, progress, and the testing harness.
 
 describe('Color Utilities', () => {
   test('colors apply ANSI codes', () => {
@@ -117,98 +58,6 @@ describe('Color Utilities', () => {
     expect(result).toContain('┐');
     expect(result).toContain('└');
     expect(result).toContain('┘');
-  });
-});
-
-describe('Formatting Utilities', () => {
-  test('indent adds spaces', () => {
-    expect(indent('line', 2)).toBe('  line');
-    expect(indent('line1\nline2', 2)).toBe('  line1\n  line2');
-  });
-  
-  test('dedent removes common indentation', () => {
-    const text = '    line1\n    line2\n      line3';
-    expect(dedent(text)).toBe('line1\nline2\n  line3');
-  });
-  
-  test('wrap breaks long lines', () => {
-    const text = 'This is a very long line that should be wrapped';
-    const wrapped = wrap(text, 20);
-    expect(wrapped).toContain('\n');
-    expect(wrapped.split('\n').every(line => line.length <= 20)).toBe(true);
-  });
-  
-  test('truncate shortens text', () => {
-    expect(truncate('Hello World', 8)).toBe('Hello...');
-    expect(truncate('Short', 10)).toBe('Short');
-  });
-  
-  test('center pads text', () => {
-    expect(center('Hi', 6)).toBe('  Hi  ');
-    expect(center('Hi', 6, '-')).toBe('--Hi--');
-  });
-  
-  test('formatDuration converts milliseconds', () => {
-    expect(formatDuration(500)).toBe('500ms');
-    expect(formatDuration(5500)).toBe('5.5s');
-    expect(formatDuration(65000)).toBe('1m 5s');
-    expect(formatDuration(3665000)).toBe('1h 1m');
-  });
-  
-  test('formatBytes converts bytes', () => {
-    expect(formatBytes(500)).toBe('500 B');
-    expect(formatBytes(1024)).toBe('1.0 KB');
-    expect(formatBytes(1536)).toBe('1.5 KB');
-    expect(formatBytes(1048576)).toBe('1.0 MB');
-  });
-  
-  test('humanize converts to human readable', () => {
-    expect(humanize('camelCase')).toBe('Camel case');
-    expect(humanize('snake_case')).toBe('Snake case');
-    expect(humanize('kebab-case')).toBe('Kebab case');
-  });
-  
-  test('slugify converts to slug', () => {
-    expect(slugify('Hello World!')).toBe('hello-world');
-    expect(slugify('Test @ 123')).toBe('test-123');
-  });
-});
-
-describe('Validation Utilities', () => {
-  test('createValidator validates values', () => {
-    const validator = createValidator([required, string]);
-    expect(() => validator.validate('test')).not.toThrow();
-    expect(() => validator.validate('')).toThrow(ValidationError);
-    expect(() => validator.validate(123)).toThrow(ValidationError);
-  });
-  
-  test('validator chaining with and', () => {
-    const validator = createValidator([string]).and(minLength(3));
-    expect(() => validator.validate('test')).not.toThrow();
-    expect(() => validator.validate('ab')).toThrow(ValidationError);
-  });
-  
-  test('pattern validator', () => {
-    const validator = createValidator([pattern(/^[A-Z]+$/, 'Must be uppercase')]);
-    expect(() => validator.validate('HELLO')).not.toThrow();
-    expect(() => validator.validate('hello')).toThrow(ValidationError);
-  });
-  
-  test('oneOf validator', () => {
-    const validator = createValidator([oneOf(['foo', 'bar', 'baz'])]);
-    expect(() => validator.validate('foo')).not.toThrow();
-    expect(() => validator.validate('qux')).toThrow(ValidationError);
-  });
-  
-  test('validateOptions validates object properties', () => {
-    const options = { name: 'test', count: 5 };
-    const schema = {
-      name: [required, string, minLength(3)],
-      count: [required, number]
-    };
-    
-    expect(() => validateOptions(options, schema)).not.toThrow();
-    expect(() => validateOptions({ name: 'ab', count: 5 }, schema)).toThrow(ValidationError);
   });
 });
 

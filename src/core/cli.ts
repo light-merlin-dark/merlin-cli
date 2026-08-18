@@ -13,7 +13,6 @@ import { createLogger, errorCountOf } from '../services/logger.ts';
 import { createPrompter } from '../services/prompter.ts';
 import { createHelpCommand } from '../commands/universal/help.ts';
 import { createVersionCommand } from '../commands/universal/version.ts';
-import { PluginIntegration } from '../plugins/integration.ts';
 
 export interface CLI {
   name: string;
@@ -30,7 +29,6 @@ export interface CLI {
   bootstrap?: (registry: ServiceRegistry) => Promise<void>;
   registerCommand(name: string, command: CommandDefinition): void;
   useMiddleware(middleware: Middleware): void;
-  plugins?: PluginIntegration;
 }
 
 export function createCLI(config: CLIConfig): CLI {
@@ -101,25 +99,7 @@ export function createCLI(config: CLIConfig): CLI {
           await cli.bootstrap(registry);
         }
 
-        // Initialize plugins if enabled
-        if (config.plugins?.enabled !== false && cli.plugins) {
-          await cli.plugins.initialize();
-        }
-
-        // Extract command name for plugin hooks
-        const commandName = args[0] || 'help';
-        
-        // Run plugin beforeCommand hooks
-        if (cli.plugins) {
-          await cli.plugins.runBeforeCommandHooks(commandName);
-        }
-
         const result = await router.route(args);
-
-        // Run plugin afterCommand hooks
-        if (cli.plugins) {
-          await cli.plugins.runAfterCommandHooks(commandName);
-        }
 
         // A command that returns `{ success: false }` (or an explicit
         // exitCode) has failed. Honour that: discarding it here is what let
@@ -179,11 +159,6 @@ export function createCLI(config: CLIConfig): CLI {
     router,
     commands
   };
-
-  // Create plugin integration if plugins are enabled
-  if (config.plugins?.enabled !== false) {
-    cli.plugins = new PluginIntegration(cli, registry, config.plugins || {});
-  }
 
   return cli;
 }

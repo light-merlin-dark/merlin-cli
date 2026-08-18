@@ -50,7 +50,12 @@ export interface CLIConfig {
    * `Logger` keeps no count, so it silently falls back to `'off'`.
    */
   errorExitPolicy?: 'strict' | 'off';
-  // Plugin configuration
+  /**
+   * @deprecated Accepted and ignored. The plugin system was removed in 1.2.0 —
+   * it was 313 lines that no consumer ever loaded a plugin through. The key
+   * survives only because callers passing `plugins: { enabled: false }` should
+   * not fail to compile over a feature they were already opting out of.
+   */
   plugins?: {
     enabled?: boolean;
     autoLoad?: boolean;

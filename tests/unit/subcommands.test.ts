@@ -60,6 +60,7 @@ describe('Subcommand Support', () => {
     const cli = createCLI({
       name: 'test-cli',
       version: '1.0.0',
+      exitProcess: false,
       commands: { dns: dnsCommand }
     });
 
@@ -98,6 +99,7 @@ describe('Subcommand Support', () => {
     const cli = createCLI({
       name: 'test-cli',
       version: '1.0.0',
+      exitProcess: false,
       commands: { dns: dnsCommand }
     });
 
@@ -128,16 +130,18 @@ describe('Subcommand Support', () => {
     const cli = createCLI({
       name: 'test-cli',
       version: '1.0.0',
+      exitProcess: false,
       commands: { dns: dnsCommand }
     });
 
-    try {
-      await cli.run(['dns', 'invalid']);
-      expect(true).toBe(false); // Should not reach here
-    } catch (error: any) {
-      expect(error.message).toContain("Unknown subcommand 'invalid'");
-      expect(error.message).toContain('Available subcommands: add');
-    }
+    // run() does not throw — it resolves the exit code it derived and, in
+    // normal mode, exits the process. Asserting a throw here is what let this
+    // file kill the test runner mid-suite instead of failing honestly.
+    const code = await cli.run(['dns', 'invalid']);
+
+    expect(code).toBe(1);
+    expect(errorOutput.join('\n')).toContain("Unknown subcommand 'invalid'");
+    expect(errorOutput.join('\n')).toContain('Available subcommands: add');
   });
 
   it('should handle nested help correctly', async () => {
@@ -174,6 +178,7 @@ describe('Subcommand Support', () => {
     const cli = createCLI({
       name: 'test-cli',
       version: '1.0.0',
+      exitProcess: false,
       commands: { dns: dnsCommand }
     });
 
@@ -216,6 +221,7 @@ describe('Subcommand Support', () => {
     const cli = createCLI({
       name: 'test-cli',
       version: '1.0.0',
+      exitProcess: false,
       commands: { git: gitCommand }
     });
 
@@ -263,6 +269,7 @@ describe('Subcommand Support', () => {
     const cli = createCLI({
       name: 'test-cli',
       version: '1.0.0',
+      exitProcess: false,
       commands: { dns: dnsCommand }
     });
 
