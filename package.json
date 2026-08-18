@@ -44,6 +44,7 @@
   },
   "files": [
     "dist/**/*",
+    "!dist/tsconfig.tsbuildinfo",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
