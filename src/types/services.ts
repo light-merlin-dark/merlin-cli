@@ -37,6 +37,19 @@ export interface CLIConfig {
    * tests and by embedders that own their own process lifecycle.
    */
   exitProcess?: boolean;
+  /**
+   * How a command that reported an error through `logger.error()` is treated.
+   *
+   * - `'strict'` (default) — the command failed, whatever it returned. This
+   *   closes the `logger.error(...); return;` shape, which reads as a handled
+   *   failure but resolves to exit code 0. cf-cli alone had 16 of them.
+   * - `'off'` — legacy behaviour; only the return value decides. For a CLI
+   *   that genuinely reports non-fatal errors and means to continue.
+   *
+   * Only applies to loggers created by this framework. A consumer-supplied
+   * `Logger` keeps no count, so it silently falls back to `'off'`.
+   */
+  errorExitPolicy?: 'strict' | 'off';
   // Plugin configuration
   plugins?: {
     enabled?: boolean;

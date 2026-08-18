@@ -1,6 +1,6 @@
 import { LoggerToken, ConfigToken, PrompterToken, createRegistry } from './registry.ts';
 import { bootstrap } from './bootstrap.ts';
-import { resolveExitCode } from './exit-code.ts';
+import { resolveExitCode, GENERIC_FAILURE_EXIT_CODE } from './exit-code.ts';
 import type { 
   CLIConfig, 
   CommandDefinition, 
@@ -9,7 +9,7 @@ import type {
   Middleware
 } from '../types/index.ts';
 import { CommandRouter } from '../commands/router.ts';
-import { createLogger } from '../services/logger.ts';
+import { createLogger, errorCountOf } from '../services/logger.ts';
 import { createPrompter } from '../services/prompter.ts';
 import { createHelpCommand } from '../commands/universal/help.ts';
 import { createVersionCommand } from '../commands/universal/version.ts';
@@ -87,6 +87,11 @@ export function createCLI(config: CLIConfig): CLI {
     
     async run(args: string[] = process.argv.slice(2)): Promise<number> {
       const shouldExitProcess = config.exitProcess !== false;
+      const strictErrors = config.errorExitPolicy !== 'off';
+
+      // Sampled before the command runs, not assumed to be zero: `run()` may be
+      // called more than once on the same CLI, and bootstrap can log too.
+      const errorsBefore = errorCountOf(registry.get(LoggerToken)) ?? 0;
 
       try {
         await bootstrap({ registry });
@@ -119,7 +124,18 @@ export function createCLI(config: CLIConfig): CLI {
         // A command that returns `{ success: false }` (or an explicit
         // exitCode) has failed. Honour that: discarding it here is what let
         // failed commands print an error and still exit 0.
-        const exitCode = resolveExitCode(result);
+        let exitCode = resolveExitCode(result);
+
+        // The other half of the same defect. Reading only the return value is
+        // blind to `logger.error(...); return;` — a shape that reports failure
+        // to the human and success to the shell. If the command told the user
+        // it failed, it failed; the return value does not get to overrule that.
+        if (exitCode === 0 && strictErrors) {
+          const errorsAfter = errorCountOf(registry.get(LoggerToken)) ?? 0;
+          if (errorsAfter > errorsBefore) {
+            exitCode = GENERIC_FAILURE_EXIT_CODE;
+          }
+        }
 
         // Allow event loop to complete before exiting
         // This ensures all async I/O operations (console.log, etc.) complete

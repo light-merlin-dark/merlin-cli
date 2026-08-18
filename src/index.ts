@@ -25,7 +25,7 @@ export { createHelpCommand } from './commands/universal/help.ts';
 export { createVersionCommand } from './commands/universal/version.ts';
 
 // Services
-export { createLogger, type Logger } from './services/logger.ts';
+export { createLogger, errorCountOf, ERROR_COUNT, type Logger } from './services/logger.ts';
 export { createPrompter, type Prompter } from './services/prompter.ts';
 
 // Service tokens
