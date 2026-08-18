@@ -34,11 +34,6 @@ export { LoggerToken, ConfigToken, PrompterToken, createToken } from './core/reg
 // Utilities
 export * from './utils/index.ts';
 
-// Release automation
-export { SmartRelease } from './release/smart-release.ts';
-// export { ReleaseVerifier } from './release/verifier.ts';
-// export { PostReleaseTester } from './release/post-release.ts';
-
 // Types
 export * from './types/index.ts';
 

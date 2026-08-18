@@ -55,16 +55,9 @@
     "test": "bun test",
     "test:types": "tsc --noEmit --project tsconfig.json",
     "test:integration": "bun test tests/integration",
-    "test:snapshot": "bun test --tap tests/snapshots",
+    "test:conformance": "bun test tests/conformance",
     "test:watch": "bun test --watch",
-    "version:patch": "npm version patch --no-git-tag-version",
-    "version:minor": "npm version minor --no-git-tag-version",
-    "version:major": "npm version major --no-git-tag-version",
-    "publish:private": "npm publish --registry https://npm.private.invalid/",
-    "smart-release": "bun scripts/smart-release.ts",
-    "verify-release": "bun scripts/verify-global-release.ts",
-    "prepublishOnly": "npm run build && npm run test:types",
-    "build:verified": "node scripts/build-verified.mjs"
+    "prepublishOnly": "npm run build && npm run test:types && npm run test:conformance"
   },
   "engines": {
     "node": ">=20.0.0",
