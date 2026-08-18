@@ -29,8 +29,26 @@ with `errorExitPolicy: 'off'`.
 
 The count hangs off a `Symbol` rather than a named method, because `Logger` is a
 public interface consumers implement themselves — a required member would break
-every one of those. A hand-rolled logger keeps no count and falls back to the
-old behaviour.
+every one of those.
+
+**This works for your logger too.** Consumers usually register their own logger
+under `LoggerToken`, typically from `cli.bootstrap`, which replaces the
+framework's. Counting only our own logger would have made this feature a silent
+no-op for most real CLIs — so registration is intercepted, and any logger
+landing under `LoggerToken` is wrapped with counting. The wrapper is a `Proxy`:
+your methods, properties and `this` binding are untouched.
+
+**Known limit:** `console.error` is invisible to this. Commands that report
+failure with `console.error` and return still exit 0. Route them through the
+logger, or call `process.exit(1)`.
+
+### Changed — `validateOptions` and `logExecution` are no longer top-level exports
+
+`validateOptions` previously resolved to the *validation utility* of that name,
+not the middleware, because two modules exported the symbol and `export *` made
+the winner arbitrary. Both are still available at
+`@light-merlin-dark/merlin-cli/dist/commands/index.js`. No consumer imported
+either.
 
 ### Fixed — `require()` of this package threw
 

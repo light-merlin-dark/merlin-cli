@@ -53,6 +53,18 @@ explicitly, per CLI:
 createCLI({ name: 'mycli', version: '1.0.0', errorExitPolicy: 'off', commands })
 ```
 
+Usually you don't want that. If one line is a warning dressed as an error —
+printing a count of server errors, say — make it `logger.warn` instead. Opting
+the whole CLI out to protect one mislabelled line also discards the rule
+everywhere it was doing its job.
+
+**What this can and cannot see.** It counts errors on whatever logger is
+registered under `LoggerToken`, including one you register yourself — your
+logger is wrapped so its own methods and behaviour are untouched. It does
+**not** see `console.error`. If your commands report failures with
+`console.error` and then return, they will still exit 0; route them through the
+logger, or call `process.exit(1)` yourself.
+
 ## Quick start
 
 ```ts
