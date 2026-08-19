@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1]
+
+### Fixed — colour functions rejected numbers
+
+`picocolors` typed its formatters to accept anything printable, and
+`colors.cyan(port)` on a number is a real call site. Replacing it with
+first-party code narrowed the signature to `string`, which broke the *types* of
+consumer code that had not changed a line. The signature is now
+`string | number | boolean | null | undefined`, as it was, and a type probe in
+the conformance suite compiles those three call shapes against the emitted
+`.d.ts` so it cannot narrow again.
+
+Also carries a usage error's exit code through an `onError` hook: a hook that
+enriches the message no longer flattens 2 into 1.
+
 ## [2.0.0]
 
 Commands are read by machines more often than by people now. 1.x already

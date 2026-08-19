@@ -250,9 +250,18 @@ describe('public API (built artifact)', () => {
     await Bun.write(
       probe,
       `import type { ${TYPE_SYMBOLS.join(', ')} } from ${JSON.stringify(DIST_ENTRY.replace(/\.js$/, ''))};\n` +
+        `import { colors, colorize } from ${JSON.stringify(DIST_ENTRY.replace(/\.js$/, ''))};\n` +
         `type Probe = [Command<unknown>, CommandDefinition, CommandContext, OptionSpec, ArgSpec,\n` +
-        `  CLIConfig, Middleware, Logger, Prompter, Token<string>];\n` +
-        `declare const _p: Probe;\nvoid _p;\n`
+        `  CLIConfig, Middleware, Logger, Prompter, Token<string>, LazyCommand, Manifest,\n` +
+        `  ManifestCommand, Envelope, OutputFormat, RunResult];\n` +
+        `declare const _p: Probe;\nvoid _p;\n` +
+        // picocolors accepted anything printable, and `colors.cyan(port)` on a
+        // number is a real call site in the estate. Narrowing these to `string`
+        // was a type-level break for code that never changed.
+        `const _n: string = colors.cyan(8080);\n` +
+        `const _b: string = colors.bold(true);\n` +
+        `const _u: string = colorize(42, 'green');\n` +
+        `void _n; void _b; void _u;\n`
     );
 
     const proc = Bun.spawn(

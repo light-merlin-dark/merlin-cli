@@ -34,11 +34,21 @@ export function supportsColor(stream: { isTTY?: boolean } = process.stdout): boo
 
 const OPEN = '\u001b[';
 
-function style(open: number, close: number): (text: string) => string {
+/**
+ * What a colour function accepts.
+ *
+ * Deliberately wider than `string`: picocolors took anything printable, and
+ * `colors.cyan(port)` on a number is a real call site in the estate. Narrowing
+ * it would be a type-level break for code that never changed.
+ */
+export type Colorable = string | number | boolean | null | undefined;
+export type Formatter = (text: Colorable) => string;
+
+function style(open: number, close: number): Formatter {
   const openCode = `${OPEN}${open}m`;
   const closeCode = `${OPEN}${close}m`;
 
-  return (text: string): string => {
+  return (text: Colorable): string => {
     if (!supportsColor()) return String(text);
     const value = String(text);
     // Re-open after any nested reset, so `red(a + dim(b) + c)` keeps c red.
@@ -110,10 +120,10 @@ export const colors = {
   url: style(4, 24),
 
   // Composite styles
-  header: (text: string) => colors.bold(colors.underline(text)),
-  label: (text: string) => colors.bold(text),
-  highlight: (text: string) => colors.bgYellow(colors.black(text)),
-  code: (text: string) => gray(`${text}`),
+  header: (text: Colorable) => colors.bold(colors.underline(text)),
+  label: (text: Colorable) => colors.bold(text),
+  highlight: (text: Colorable) => colors.bgYellow(colors.black(text)),
+  code: (text: Colorable) => gray(`${text}`),
 };
 
 /**
@@ -125,7 +135,7 @@ export const colors = {
  */
 export function createStyler(stream: { isTTY?: boolean }): Record<'red' | 'green' | 'yellow' | 'blue' | 'gray', (text: string) => string> {
   const on = supportsColor(stream);
-  const wrap = (open: number) => (text: string) =>
+  const wrap = (open: number) => (text: string): string =>
     on ? `${OPEN}${open}m${text}${OPEN}39m` : text;
 
   return { red: wrap(31), green: wrap(32), yellow: wrap(33), blue: wrap(34), gray: wrap(90) };
@@ -136,13 +146,13 @@ export function stripColors(text: string): string {
   return text.replace(/\u001b\[[0-9;]*m/g, '');
 }
 
-export function colorize(text: string, color?: keyof typeof colors): string {
-  if (!color || !colors[color]) return text;
-  return (colors[color] as (text: string) => string)(text);
+export function colorize(text: Colorable, color?: keyof typeof colors): string {
+  if (!color || !colors[color]) return String(text);
+  return (colors[color] as Formatter)(text);
 }
 
 export function gradient(text: string, from: string, to: string): string {
-  const chars = text.split('');
+  const chars = String(text).split('');
   const mid = Math.floor(chars.length / 2);
 
   return chars.map((char, i) => {
@@ -211,7 +221,7 @@ export function box(content: string, options?: {
   const maxLength = Math.max(...lines.map(l => stripColors(l).length));
   const innerWidth = maxLength + (padding * 2);
 
-  const color = options?.borderColor ? colors[options.borderColor] : (x: string) => x;
+  const color = (options?.borderColor ? colors[options.borderColor] : (x: Colorable) => String(x)) as Formatter;
 
   const result: string[] = [];
 
@@ -222,10 +232,10 @@ export function box(content: string, options?: {
     const rightPadding = Math.max(0, innerWidth - titleLength - 2 - leftPadding);
     topBorder = border.tl + border.h.repeat(leftPadding) + ' ' + options.title + ' ' + border.h.repeat(rightPadding) + border.tr;
   }
-  result.push(marginStr + (color as (t: string) => string)(topBorder));
+  result.push(marginStr + color(topBorder));
 
   for (let i = 0; i < padding; i++) {
-    result.push(marginStr + (color as (t: string) => string)(border.v) + ' '.repeat(innerWidth) + (color as (t: string) => string)(border.v));
+    result.push(marginStr + color(border.v) + ' '.repeat(innerWidth) + color(border.v));
   }
 
   lines.forEach(line => {
@@ -236,19 +246,19 @@ export function box(content: string, options?: {
 
     result.push(
       marginStr +
-      (color as (t: string) => string)(border.v) +
+      color(border.v) +
       ' '.repeat(leftPad) +
       line +
       ' '.repeat(rightPad) +
-      (color as (t: string) => string)(border.v)
+      color(border.v)
     );
   });
 
   for (let i = 0; i < padding; i++) {
-    result.push(marginStr + (color as (t: string) => string)(border.v) + ' '.repeat(innerWidth) + (color as (t: string) => string)(border.v));
+    result.push(marginStr + color(border.v) + ' '.repeat(innerWidth) + color(border.v));
   }
 
-  result.push(marginStr + (color as (t: string) => string)(border.bl) + border.h.repeat(innerWidth) + (color as (t: string) => string)(border.br));
+  result.push(marginStr + color(border.bl) + border.h.repeat(innerWidth) + color(border.br));
 
   return result.join('\n');
 }
@@ -260,11 +270,11 @@ export function badge(text: string, options?: {
   let result = ` ${text} `;
 
   if (options?.bgColor && colors[options.bgColor]) {
-    result = (colors[options.bgColor] as (text: string) => string)(result);
+    result = (colors[options.bgColor] as Formatter)(result);
   }
 
   if (options?.color && colors[options.color]) {
-    result = (colors[options.color] as (text: string) => string)(result);
+    result = (colors[options.color] as Formatter)(result);
   }
 
   return result;
