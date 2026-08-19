@@ -1,5 +1,5 @@
 import { test, expect, describe } from 'bun:test';
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { REPO_ROOT } from './harness.ts';
 
@@ -86,6 +86,38 @@ describe('the contract is enforced, not described', () => {
     const orphans = [...covered.keys()].filter(id => !defined.has(id));
 
     expect(orphans).toEqual([]);
+  });
+
+  test('the numbers the README quotes are the numbers the suite produces', () => {
+    // The README claims a clause count, a test count and an artifact size.
+    // Numbers in prose rot silently; these are the same numbers the suite and
+    // the build actually produce, so they cannot.
+    const readme = readFileSync(join(REPO_ROOT, 'README.md'), 'utf8');
+
+    const runtime = clauses.filter(clause => clause.normative && !clause.process);
+    const tests = [...covered.values()].reduce((total, list) => total + list.length, 0);
+
+    const quoted = readme.match(/\*\*(\d+) normative clauses\. (\d+) tests\./);
+    expect(quoted).not.toBeNull();
+    expect(Number(quoted![1])).toBe(runtime.length);
+    expect(Number(quoted![2])).toBe(tests);
+
+    // …and the three clause ids it names as examples must exist.
+    const named = readme.match(/`([A-Z]+-\d+)`, `([A-Z]+-\d+)`, `([A-Z]+-\d+)`/);
+    expect(named).not.toBeNull();
+    const defined = new Set(clauses.map(clause => clause.id));
+    for (const id of named!.slice(1)) expect(defined.has(id)).toBe(true);
+
+    // "and 43 others" — the remainder after the three it named.
+    const remainder = readme.match(/and (\d+)\s*\n?others/);
+    expect(remainder).not.toBeNull();
+    expect(Number(remainder![1])).toBe(runtime.length - 3);
+
+    // The stated artifact size, in whole KB, rounded down.
+    const size = statSync(join(REPO_ROOT, 'dist/index.js')).size;
+    const statedKb = readme.match(/(\d+) KB, unminified/);
+    expect(statedKb).not.toBeNull();
+    expect(Math.floor(size / 1024)).toBe(Number(statedKb![1]));
   });
 
   test('the conformance report is written for review', () => {

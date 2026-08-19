@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.4]
+
+### Changed — the README leads with what 2.0 actually is
+
+It was still a 1.x README with 2.0 appended. By line count the exit-code
+section was only 9% of the page, but it held the first bullet, the quick start,
+the first heading — and a sentence explicitly framing everything after it as
+"what 2.0 adds on top of it". A reader who stopped after the quick start had
+seen nothing else, and had been told the rest was an addendum.
+
+The lead is now the thing that is hard to copy and easy to verify: **your
+command already returns a value, and that value becomes JSON**, followed by a
+CLI describing its entire surface in one call, followed by a contract whose
+every clause has a test. The exit code keeps its section — it is the most
+visceral story on the page — but as proof of the thesis rather than the thesis.
+
+Also added: an agent-facing entry point, a fair comparison to commander, yargs
+and oclif, real `manifest` output rather than a description of it, and what is
+actually in production.
+
+### Added — the README is now checked, not asserted
+
+Two conformance tests, because prose rots silently:
+
+- the lead example runs verbatim, and its text output, its `--json` envelope,
+  its manifest subtree and its usage-error exit code must match the bytes the
+  README prints;
+- the clause count, the test count and the artifact size quoted in the README
+  must equal what the suite and the build actually produce.
+
+The second one failed on its first run: the README said 87 KB where the
+artifact is 85 KB, because `bun build` reports kilobytes as bytes/1000.
+
 ## [2.0.3]
 
 ### Changed — MIGRATING.md, after seven real migrations

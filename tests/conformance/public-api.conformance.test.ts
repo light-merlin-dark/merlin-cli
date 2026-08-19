@@ -122,6 +122,75 @@ describe('public API (built artifact)', () => {
     expect(r.stdout.trim()).toBe('[]');
   });
 
+  test('the README lead example produces exactly the output the README shows', async () => {
+    // The first code a reader sees, and the outputs printed beneath it. Copied,
+    // not paraphrased: a README that drifts from the artifact is the same
+    // defect as an export list that drifts from it.
+    const source =
+      `import { createCLI, createCommand, LoggerToken } from __DIST__;\n` +
+      `const deploy = createCommand({\n` +
+      `  name: 'deploy',\n` +
+      `  description: 'Deploy the current branch',\n` +
+      `  args: { target: { type: 'string', required: true, choices: ['staging', 'prod'],\n` +
+      `                    description: 'Environment' } },\n` +
+      `  options: {\n` +
+      `    force: { type: 'boolean', description: 'Skip confirmation', alias: 'f' },\n` +
+      `    tag:   { type: 'array',   description: 'Extra tags', alias: 't' },\n` +
+      `    token: { type: 'string',  description: 'Auth token', env: 'DEPLOY_TOKEN' }\n` +
+      `  },\n` +
+      `  examples: ['mycli deploy staging', 'mycli deploy prod --force'],\n` +
+      `  exitCodes: { 4: 'deployed with warnings' },\n` +
+      "  render: (data) => `Deployed → ${data.url}`,\n" +
+      `  execute: async (ctx) => {\n` +
+      `    ctx.registry.get(LoggerToken).info('connecting to staging…');\n` +
+      "    return { url: `https://${ctx.namedArgs.target}.example.com`, durationMs: 8120 };\n" +
+      `  }\n` +
+      `});\n` +
+      `await createCLI({ name: 'mycli', version: '1.0.0', commands: { deploy } }).run();\n`;
+
+    // 1. Text mode: payload on stdout, commentary on stderr.
+    const text = await runScript(source, ['deploy', 'staging']);
+    expect(text.code).toBe(0);
+    expect(text.stdout).toBe('Deployed → https://staging.example.com\n');
+    expect(text.stderr).toContain('connecting to staging');
+
+    // 2. The envelope, field for field as the README prints it.
+    const machine = await runScript(source, ['deploy', 'staging', '--json']);
+    expect(machine.code).toBe(0);
+    expect(machine.json()).toEqual({
+      ok: true,
+      code: 0,
+      command: 'deploy',
+      data: { url: 'https://staging.example.com', durationMs: 8120 },
+      error: null,
+      cli: { name: 'mycli', version: '1.0.0', contract: '2.0' }
+    });
+
+    // 3. The manifest subtree, as shown under `jq '.commands[] | select(...)'`.
+    const manifest = (await runScript(source, ['manifest'])).json();
+    const entry = manifest.commands.find((command: any) => command.name === 'deploy');
+
+    expect(entry.description).toBe('Deploy the current branch');
+    expect(entry.args).toEqual([
+      { name: 'target', type: 'string', description: 'Environment', required: true,
+        choices: ['staging', 'prod'] }
+    ]);
+    expect(entry.options).toEqual([
+      { name: 'force', type: 'boolean', description: 'Skip confirmation', required: false, alias: 'f' },
+      { name: 'tag', type: 'array', description: 'Extra tags', required: false, alias: 't' },
+      { name: 'token', type: 'string', description: 'Auth token', required: false, env: 'DEPLOY_TOKEN' }
+    ]);
+    expect(entry.examples).toEqual(['mycli deploy staging', 'mycli deploy prod --force']);
+    expect(entry.exitCodes).toEqual([{ code: 4, meaning: 'deployed with warnings' }]);
+
+    // 4. The typo, and the code the README says it exits with.
+    const typo = await runScript(source, ['deploy', 'prod', '--forse']);
+    expect(typo.code).toBe(2);
+    expect(typo.stderr).toContain(
+      'Unknown option: --forse. Run with --help to see the options this command accepts.'
+    );
+  });
+
   test('the README quick-start runs exactly as printed', async () => {
     // Copied from the README, not paraphrased. Docs that drift from the
     // artifact are the same defect as an export list that drifts from it.
