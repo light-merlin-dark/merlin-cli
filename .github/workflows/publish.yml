@@ -41,6 +41,13 @@ jobs:
         with:
           bun-version: latest
 
+      # The README claims runtime neutrality, so CI checks it rather than
+      # taking it on trust. The conformance suite skips the Deno case when the
+      # binary is absent, which would have made this claim untested.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - run: npm ci
 
       # The gate, run explicitly rather than left to prepublishOnly. This

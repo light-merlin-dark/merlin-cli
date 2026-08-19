@@ -44,7 +44,8 @@
       "normative": true,
       "kind": "runtime",
       "tests": [
-        "truth.conformance.test.ts: an onError hook cannot turn a failure into a success"
+        "truth.conformance.test.ts: an onError hook cannot turn a failure into a success",
+        "truth.conformance.test.ts: a hooked usage error keeps its exit code"
       ]
     },
     {

@@ -138,6 +138,23 @@ describe('TRUTH — the exit code', () => {
     expect(r.stderr).toContain('handled');
     expect(r.code).toBe(1);
   });
+
+  T('TRUTH-5', 'a hooked usage error keeps its exit code', async () => {
+    // A hook that enriches the message must not flatten 2 into 1: the caller
+    // still called wrong, and that is still the fact to report.
+    const r = await runScript(
+      `import { createCLI } from __DIST__;\n` +
+        `const cli = createCLI({ name: 'hooked', version: '0.0.0',\n` +
+        `  onError: async (err) => { console.error('rendered: ' + err.message); },\n` +
+        `  commands: { real: { name: 'real', description: 'd', execute: () => undefined } }\n` +
+        `});\n` +
+        `await cli.run();\n`,
+      ['not-a-command']
+    );
+
+    expect(r.stderr).toContain('rendered:');
+    expect(r.code).toBe(2);
+  });
 });
 
 describe('EXIT — usage errors are their own kind', () => {

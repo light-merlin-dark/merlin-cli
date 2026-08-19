@@ -1,5 +1,5 @@
 import { LoggerToken } from '../core/registry.ts';
-import { UsageError } from '../core/errors.ts';
+import { UsageError, exitCodeOfError } from '../core/errors.ts';
 import { bindArgs, parseArgv, parseLegacy, type ParseResult } from '../core/grammar.ts';
 import { describe, resolveCommand } from './lazy.ts';
 import { declaresSurface } from './create-command.ts';
@@ -247,8 +247,12 @@ export class CommandRouter {
         await this.hooks.onError(error as Error, context);
 
         // The hook consumed the error, but the command still failed. Report a
-        // failure result so the caller cannot exit 0 on a handled error.
-        return { result: { success: false, error: error as Error }, command: context.commandName };
+        // failure result so the caller cannot exit 0 on a handled error — and
+        // carry the original code, so a handled usage error is still a 2.
+        return {
+          result: { success: false, error: error as Error, exitCode: exitCodeOfError(error) },
+          command: context.commandName
+        };
       }
       throw error;
     }

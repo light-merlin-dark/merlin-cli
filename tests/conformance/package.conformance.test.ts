@@ -157,8 +157,14 @@ describe('packaging', () => {
     // Runtime neutrality is a claim the README makes, so it is checked rather
     // than assumed. Deno has no `setImmediate`; relying on one was the defect
     // this test now guards.
-    const available = Bun.spawnSync(['deno', '--version'], { stdout: 'pipe', stderr: 'pipe' });
-    if (!available.success) return;
+    // Skip where Deno is absent rather than failing: `spawnSync` throws on a
+    // missing binary, it does not report an unsuccessful exit.
+    try {
+      const available = Bun.spawnSync(['deno', '--version'], { stdout: 'pipe', stderr: 'pipe' });
+      if (!available.success) return;
+    } catch {
+      return;
+    }
 
     const r = await runScript(
       `import { createCLI } from __DIST__;\n` +
