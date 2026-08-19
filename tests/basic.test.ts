@@ -8,7 +8,7 @@ import {
   createLogger
 } from '../src/index.ts';
 
-describe('@merlin/cli', () => {
+describe('@light-merlin-dark/merlin-cli', () => {
   test('createCLI creates a CLI instance', () => {
     const cli = createCLI({
       name: 'test-cli',

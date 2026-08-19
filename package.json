@@ -52,7 +52,7 @@
   "scripts": {
     "build": "rm -rf dist && bun build ./src/index.ts --target node --outdir ./dist && tsc --emitDeclarationOnly",
     "test": "bun test",
-    "test:types": "tsc --noEmit --project tsconfig.json",
+    "test:types": "tsc --noEmit --project tsconfig.check.json",
     "test:integration": "bun test tests/integration",
     "test:conformance": "bun test tests/conformance",
     "test:watch": "bun test --watch",

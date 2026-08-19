@@ -341,7 +341,7 @@ const cli = createCLI({
         
         let running = true;
         while (running) {
-          const input = await prompter.prompt('api> ');
+          const input = await prompter.text('api> ');
           const [cmd, ...args] = input.trim().split(' ');
           
           if (cmd === 'exit') {
@@ -351,7 +351,7 @@ const cli = createCLI({
           
           if (cmd in commands) {
             try {
-              await commands[cmd as keyof typeof commands](...args);
+              await (commands[cmd as keyof typeof commands] as (...a: string[]) => unknown)(...args);
             } catch (error) {
               logger.error(`Error: ${error}`);
             }

@@ -14,7 +14,12 @@ function customRouter(args: string[]) {
   }
 
   // For everything else, use intelligent argument detection
-  const parsed = {
+  const parsed: {
+    count: number;
+    protocol: string;
+    country: string;
+    website?: string;
+  } = {
     count: 10,      // default
     protocol: 'any', // default
     country: 'US',   // default
@@ -35,7 +40,8 @@ function customRouter(args: string[]) {
 
   return {
     command: 'get',
-    args: [parsed.count.toString(), parsed.protocol, parsed.country, parsed.website].filter(Boolean)
+    args: [parsed.count.toString(), parsed.protocol, parsed.country, parsed.website]
+      .filter((value): value is string => Boolean(value))
   };
 }
 

@@ -11,7 +11,7 @@ export { type Logger };
  * one of those; a symbol is invisible to structural typing, so a hand-rolled
  * logger still satisfies `Logger` and simply opts out of the check.
  */
-export const ERROR_COUNT = Symbol.for('@merlin/cli.errorCount');
+export const ERROR_COUNT = Symbol.for('@light-merlin-dark/merlin-cli.errorCount');
 
 /** Read how many errors a logger has reported, if it is keeping count. */
 export function errorCountOf(logger: unknown): number | null {

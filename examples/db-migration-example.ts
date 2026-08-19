@@ -396,7 +396,10 @@ const cli = createCLI({
         }
 
         // Rollback all
-        await cli.commands.down.execute({
+        // `CommandDefinition` may be a lazy loader, so narrow before calling.
+        const down = cli.commands.down;
+        const resolvedDown = typeof down === 'function' ? await down() : down;
+        await resolvedDown.execute!({
           args: [],
           options: { all: true },
           registry

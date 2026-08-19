@@ -1,0 +1,14 @@
+{
+  "//": "Typecheck-only config, separate from tsconfig.json because that one also drives declaration emit: including files outside src/ pushes rootDir to the repo root and lands dist/src/index.d.ts instead of dist/index.d.ts.",
+  "//examples": "examples/ is checked here because it was checked nowhere. A plugin example outlived the plugin system's deletion in 1.2.0 and still compiled green, because tsconfig.json only ever included src/**/*.",
+  "//tests": "tests/**/* is deliberately NOT included yet. It has 19 pre-existing type errors (13 in unit/args, 5 in basic, 1 in unit/utilities) that predate this config and are unrelated to it. Adding them would ship a red gate. They pass at runtime; fixing them is its own task.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "incremental": false
+  },
+  "include": ["src/**/*", "examples/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

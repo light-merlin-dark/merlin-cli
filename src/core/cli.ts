@@ -15,7 +15,7 @@ import { createHelpCommand } from '../commands/universal/help.ts';
 import { createVersionCommand } from '../commands/universal/version.ts';
 
 /** Marks a registry whose logger registrations are already intercepted. */
-const COUNTING_INSTALLED = Symbol.for('@merlin/cli.loggerCountingInstalled');
+const COUNTING_INSTALLED = Symbol.for('@light-merlin-dark/merlin-cli.loggerCountingInstalled');
 
 /**
  * Patch a registry so every logger registered under `LoggerToken` is wrapped
