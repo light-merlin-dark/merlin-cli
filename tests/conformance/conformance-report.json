@@ -216,6 +216,8 @@
       "tests": [
         "grammar.conformance.test.ts: a number option rejects non-numeric input instead of producing NaN",
         "grammar.conformance.test.ts: an array option accumulates across repeats",
+        "grammar.conformance.test.ts: an array option splits values on commas",
+        "grammar.conformance.test.ts: an array option declaring split:false keeps free text whole",
         "grammar.conformance.test.ts: repeating a non-array option is last-wins with a warning",
         "grammar.conformance.test.ts: a value outside the declared choices is a usage error"
       ]

@@ -51,6 +51,18 @@ export interface OptionSpec {
   choices?: readonly any[];
   /** Environment variable consulted when the option is absent. */
   env?: string;
+  /**
+   * For `array` options: split each value on commas. Default `true`.
+   *
+   * Set `false` when a repeated option carries FREE TEXT rather than a list.
+   * `--deviation input="a new key, a new domain, and a deploy"` is one value a
+   * person wrote, and splitting it produces three fragments — the first of which
+   * still parses as a plausible `key=value`, so the failure is silent rather
+   * than loud.
+   *
+   * Ignored for non-array options.
+   */
+  split?: boolean;
   validate?: (value: any) => boolean | string;
 }
 

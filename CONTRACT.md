@@ -152,8 +152,9 @@ MUST be preserved, and options MUST be position-independent.
 
 **GRAM-3.** Values are coerced to the declared type. `number` MUST reject
 non-numeric input as a usage error rather than producing `NaN`. `array`
-accumulates across repeats. Repeating a non-array option is last-wins plus a
-warning.
+accumulates across repeats and splits each value on commas; an `array` option
+declaring `split: false` MUST keep each value whole, so a repeated option can
+carry free text. Repeating a non-array option is last-wins plus a warning.
 
 **GRAM-4 ⊳.** For a declared command, an undeclared option MUST be a usage
 error. Undeclared commands keep permissive passthrough.

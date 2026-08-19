@@ -84,6 +84,25 @@ describe('GRAM — one parser, written down', () => {
     expect((await parsed(['world', '-t', 'a', '-t', 'b'])).options.tag).toEqual(['a', 'b']);
   });
 
+  T('GRAM-3', 'an array option splits values on commas', async () => {
+    expect((await parsed(['world', '--tag', 'a,b', '--tag', 'c'])).options.tag).toEqual(['a', 'b', 'c']);
+  });
+
+  T('GRAM-3', 'an array option declaring split:false keeps free text whole', async () => {
+    // A repeated option carrying prose — a reason, a message, a commit body — is
+    // one value a person wrote. Splitting it on commas yields fragments that
+    // often still look well-formed to the consumer, so the failure is silent.
+    const options = (await parsed([
+      'world',
+      '--reason',
+      'a new key, a new domain, and a deploy',
+      '--reason',
+      'second, still whole'
+    ])).options;
+
+    expect(options.reason).toEqual(['a new key, a new domain, and a deploy', 'second, still whole']);
+  });
+
   T('GRAM-3', 'repeating a non-array option is last-wins with a warning', async () => {
     const r = await run(['ok', 'world', '--out', 'first', '--out', 'second', '--json']);
 

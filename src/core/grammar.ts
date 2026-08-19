@@ -299,9 +299,16 @@ function coerce(
     }
 
     if (declared.type === 'array') {
-      options[name] = values.flatMap(value =>
-        typeof value === 'string' ? value.split(',').map(part => part.trim()) : [value]
-      );
+      // `split: false` keeps each value whole. A repeated option carrying free
+      // text — a reason, a message, a description — is one value a person
+      // wrote, and splitting it on commas produces fragments that often still
+      // look well-formed, so the failure is silent rather than loud.
+      options[name] =
+        declared.split === false
+          ? [...values]
+          : values.flatMap(value =>
+              typeof value === 'string' ? value.split(',').map(part => part.trim()) : [value]
+            );
       continue;
     }
 
@@ -320,7 +327,9 @@ function coerce(
       const fromEnv = process.env[declared.env] as string;
       options[name] =
         declared.type === 'array'
-          ? fromEnv.split(',').map(part => part.trim())
+          ? declared.split === false
+            ? [fromEnv]
+            : fromEnv.split(',').map(part => part.trim())
           : coerceScalar(name, fromEnv, declared);
       continue;
     }

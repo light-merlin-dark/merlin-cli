@@ -1,6 +1,6 @@
 {
   "name": "@light-merlin-dark/merlin-cli",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "A TypeScript CLI framework whose commands are readable by machines: honest exit codes, --json and --ndjson for free, and a manifest that describes the whole tool in one call.",
   "keywords": [
     "cli",

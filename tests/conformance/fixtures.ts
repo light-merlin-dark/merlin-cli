@@ -15,6 +15,7 @@ const ok = createCommand({
   options: {
     times: { type: 'number', description: 'repeat', default: 1, alias: 'n' },
     tag: { type: 'array', description: 'labels', alias: 't' },
+    reason: { type: 'array', description: 'free text, repeated', split: false },
     force: { type: 'boolean', description: 'skip checks', alias: 'f' },
     all: { type: 'boolean', description: 'everything', alias: 'a' },
     out: { type: 'string', description: 'destination', alias: 'o' },

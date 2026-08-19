@@ -20,7 +20,7 @@ describe('DESC — a CLI that describes itself', () => {
       { name: 'who', type: 'string', description: 'subject', required: true }
     ]);
     expect(ok.options.map((o: any) => o.name)).toEqual([
-      'times', 'tag', 'force', 'all', 'out', 'cache', 'mode', 'token'
+      'times', 'tag', 'reason', 'force', 'all', 'out', 'cache', 'mode', 'token'
     ]);
     expect(ok.options.find((o: any) => o.name === 'mode').choices).toEqual(['fast', 'safe']);
     expect(ok.examples).toEqual(['ok world', 'ok world --json']);

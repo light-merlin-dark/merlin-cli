@@ -160,7 +160,7 @@ answered it, rather than hanging you forever.
 RFC-2119 clauses with identifiers: `TRUTH-1`, `STREAM-2`, `GRAM-4`, and 43
 others.
 
-**46 normative clauses. 92 tests. The conformance suite parses the contract and
+**46 normative clauses. 94 tests. The conformance suite parses the contract and
 fails the build if a clause has no test.** You cannot add a promise here without
 adding the thing that proves it.
 

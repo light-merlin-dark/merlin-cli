@@ -46,8 +46,10 @@ export const validateOptions: Middleware = async (context, command, next) => {
         break;
       case 'array':
         if (!Array.isArray(value) && typeof value === 'string') {
-          // Convert comma-separated string to array
-          context.options[name] = value.split(',').map(v => v.trim());
+          // Convert comma-separated string to array, unless the option carries
+          // free text and declared `split: false`.
+          context.options[name] =
+            optionSpec.split === false ? [value] : value.split(',').map(v => v.trim());
         }
         break;
     }
