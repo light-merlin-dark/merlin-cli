@@ -12,6 +12,9 @@ cat node_modules/@light-merlin-dark/merlin-cli/MIGRATING.md
 
 **Budget:** 20–60 minutes for a typical CLI. Most of that is step 3.
 
+**Nine steps.** Steps 3 and 6 are where every migration so far actually spent
+its time.
+
 **The one rule:** a consumer's own test suite passing before and after is the
 acceptance gate — not this framework's tests, and not the absence of type
 errors. Record the baseline before you change anything.
@@ -53,14 +56,20 @@ migration looks like the cause.
 ## 2. Bump and install
 
 ```bash
-npm pkg set dependencies.@light-merlin-dark/merlin-cli=^2.0.1
-npm install
+npm pkg set dependencies.@light-merlin-dark/merlin-cli=^2.0.3
+bun install        # or npm install — see below
 npm ls @light-merlin-dark/merlin-cli    # confirm it actually moved
 ```
 
+**Use the package manager whose lockfile is tracked.** `git ls-files | grep -i
+lock` will tell you. Running `npm install` in a Bun project rewrote one repo's
+`node_modules` in a way its native dependency could not survive, which looked
+exactly like a migration failure and was not one. If both lockfiles are tracked,
+update both.
+
 `npm install` alone sometimes leaves the old version in place when the lockfile
-pins it. Check the output of `npm ls`; if it still says 1.x, run
-`npm install @light-merlin-dark/merlin-cli@^2.0.1`.
+pins it. Check the output of `npm ls`; if it still says 1.x, ask for it by
+version explicitly.
 
 **If your CLI bundles the framework into its own `dist`** — check whether your
 `build` script runs `bun build` or `esbuild` over `src` — then swapping
@@ -173,7 +182,39 @@ const RESERVED = new Set(['manifest']);
 if (RESERVED.has(name) && !commands[name]) return null;   // let the router answer
 ```
 
-## 6. Check the exit path
+## 6. Let `manifest` past whatever guards your bootstrap
+
+`cli.bootstrap` runs before the router decides what was asked for, so anything
+it demands is demanded of every command — including the two that only describe
+the CLI and reach nothing.
+
+Three of the CLIs migrated so far failed here. One required a Cloudflare token,
+one required Coolify credentials, one initialised a browser and a proxy pool
+that needed a password. In each case `yourcli manifest` answered with a
+credential error, which means an agent cannot learn what the tool does without
+being handed a secret first.
+
+If your bootstrap already has a predicate for this, add the reserved names to
+it:
+
+```ts
+const LOCAL_ONLY = new Set(['help', 'version', 'manifest', '--help', '-h', '--version']);
+```
+
+If it does not, the guard is one line at the top:
+
+```ts
+cli.bootstrap = async (registry) => {
+  const [first] = process.argv.slice(2);
+  if (!first || LOCAL_ONLY.has(first)) return;
+  // …the expensive registration…
+};
+```
+
+Check it with `yourcli manifest | jq '.commands[].name'` in a shell with no
+credentials set at all.
+
+## 7. Check the exit path
 
 Three things to look for in your entry point and your `onError` hook:
 
@@ -197,7 +238,7 @@ rephrases those messages, so the branch went dead silently. Use `isUsageError`.
 so that a stray `setInterval` cannot keep a finished CLI alive. Move the work
 before the call, or pass `exitProcess: false` and exit yourself.
 
-## 7. Re-run, and read the diff against your baseline
+## 8. Re-run, and read the diff against your baseline
 
 ```bash
 bun test 2>&1 | tail -5
@@ -215,7 +256,7 @@ yourcli somecommand --typpo; echo $?  # 2, naming the flag
 yourcli somecommand | jq .            # no log lines in the payload
 ```
 
-## 8. Update the tests that encoded the old behaviour
+## 9. Update the tests that encoded the old behaviour
 
 Expect a handful. These are not regressions; they are assertions about things
 that deliberately changed. The ones seen so far:

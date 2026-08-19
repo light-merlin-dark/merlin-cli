@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3]
+
+### Changed — MIGRATING.md, after seven real migrations
+
+Two steps added, both from things that actually went wrong:
+
+- **Let `manifest` past whatever guards your bootstrap.** `cli.bootstrap` runs
+  before the router decides what was asked for, so anything it demands is
+  demanded of every command. Three CLIs answered `manifest` with a credential
+  error — an agent could not learn what the tool does without being handed a
+  secret first.
+- **Use the package manager whose lockfile is tracked.** Running `npm install`
+  in a Bun project rewrote one repo's `node_modules` in a way its native
+  dependency could not survive, which looked exactly like a migration failure
+  and was not one.
+
 ## [2.0.2]
 
 ### Added — MIGRATING.md, shipped with the package
