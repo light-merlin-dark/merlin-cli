@@ -1,12 +1,61 @@
 import { LoggerToken } from '../core/registry.ts';
-import type { 
-  CommandDefinition, 
+import { UsageError } from '../core/errors.ts';
+import { bindArgs, parseArgv, parseLegacy, type ParseResult } from '../core/grammar.ts';
+import { describe, resolveCommand } from './lazy.ts';
+import { declaresSurface } from './create-command.ts';
+import type {
+  Command,
+  CommandDefinition,
   CommandContext,
   RouteContext,
   ServiceRegistry,
   Middleware,
   CustomRouterResult
 } from '../types/index.ts';
+
+export interface RoutingOptions {
+  customRouter?: (args: string[]) => CustomRouterResult | null;
+  defaultCommand?: string;
+  defaultHandler?: (context: { args: string[]; options: Record<string, any> }) => Promise<unknown> | unknown;
+  beforeExecute?: (context: { command: string; args: string[]; options: Record<string, any> }) => { command: string; args: string[]; options: Record<string, any> } | null;
+  /** Reject undeclared options on commands that declare a surface. */
+  strictOptions?: 'on' | 'off';
+  /** Extra context the CLI supplies to every command. */
+  contextExtras?: () => Partial<CommandContext>;
+  /**
+   * Called once the invocation is understood and before anything executes, so
+   * the caller can settle the output format against the command's own
+   * declarations. `null` when no command matched.
+   */
+  onResolved?: (resolution: Resolution | null) => void;
+}
+
+/** What the router worked out before running anything. */
+export interface Resolution {
+  /** Declaration for the command, still unloaded if it is lazy. */
+  definition: CommandDefinition | null;
+  /** Metadata available without loading. `null` for a 1.x opaque thunk. */
+  metadata: Command | null;
+  /** Command path as the user reached it, e.g. `['dns', 'add']`. */
+  path: string[];
+  /** Tokens left after the command path. */
+  tokens: string[];
+  /** True when the invocation asked for help rather than execution. */
+  wantsHelp: boolean;
+  /** Set when no command matched and a default handler will take the args. */
+  useDefaultHandler: boolean;
+}
+
+export interface RouteOutcome {
+  result: unknown;
+  /** The command path that actually ran, for the envelope's `command` field. */
+  command: string;
+  /** Text-mode renderer declared by the command that ran, if any. */
+  render?: (data: unknown) => string;
+}
+
+const HELP_FLAGS = new Set(['--help', '-h']);
+const VERSION_FLAGS = new Set(['--version', '-V']);
 
 export class CommandRouter {
   private middleware: Middleware[] = [];
@@ -19,12 +68,7 @@ export class CommandRouter {
       onAfterRoute?: (context: RouteContext) => Promise<void>;
       onError?: (error: Error, context: RouteContext) => Promise<void>;
     },
-    private routingOptions?: {
-      customRouter?: (args: string[]) => CustomRouterResult | null;
-      defaultCommand?: string;
-      defaultHandler?: (context: { args: string[]; options: Record<string, any> }) => Promise<unknown> | unknown;
-      beforeExecute?: (context: { command: string; args: string[]; options: Record<string, any> }) => { command: string; args: string[]; options: Record<string, any> } | null;
-    }
+    private routingOptions?: RoutingOptions
   ) {}
 
   use(middleware: Middleware): void {
@@ -32,269 +76,305 @@ export class CommandRouter {
   }
 
   /**
+   * Work out what the invocation refers to, loading nothing.
+   *
+   * This runs before execution so the framework can settle the output format
+   * against the command's own declarations — a command that owns `--json`
+   * keeps it — and so `--help` never executes anything.
+   */
+  resolve(args: string[]): Resolution {
+    const tokensAll = [...args];
+    let head = tokensAll[0];
+
+    // A bare `--help` / `--version` before any command name. 1.x reported these
+    // as unknown commands, which is the first thing a person tries.
+    if (head !== undefined && HELP_FLAGS.has(head)) {
+      return this.entry('help', tokensAll.slice(1), true);
+    }
+    if (head !== undefined && VERSION_FLAGS.has(head)) {
+      return this.entry('version', tokensAll.slice(1), false);
+    }
+
+    if (head === undefined || head.startsWith('-')) {
+      if (this.routingOptions?.defaultCommand && this.commands[this.routingOptions.defaultCommand]) {
+        return this.entry(this.routingOptions.defaultCommand, tokensAll, false);
+      }
+      if (head !== undefined && this.routingOptions?.defaultHandler) {
+        return {
+          definition: null,
+          metadata: null,
+          path: [],
+          tokens: tokensAll,
+          wantsHelp: false,
+          useDefaultHandler: true
+        };
+      }
+      return this.entry('help', head === undefined ? [] : tokensAll, false);
+    }
+
+    let definition = this.commands[head] ?? this.findByAlias(head);
+    let path = [head];
+    let tokens = tokensAll.slice(1);
+
+    if (!definition) {
+      if (this.routingOptions?.defaultCommand && this.commands[this.routingOptions.defaultCommand]) {
+        return this.entry(this.routingOptions.defaultCommand, tokensAll, false);
+      }
+      if (this.routingOptions?.defaultHandler) {
+        return {
+          definition: null,
+          metadata: null,
+          path: [],
+          tokens: tokensAll,
+          wantsHelp: false,
+          useDefaultHandler: true
+        };
+      }
+      throw new UsageError(
+        `Unknown command: ${head}. Run 'help' to see the available commands.`
+      );
+    }
+
+    // Longest declared subcommand path wins. Metadata is read, never loaded.
+    let metadata = describe(definition);
+    while (metadata?.subcommands && tokens.length > 0 && !tokens[0].startsWith('-')) {
+      const next = tokens[0];
+      const sub =
+        metadata.subcommands[next] ??
+        Object.values(metadata.subcommands).find(candidate => candidate.aliases?.includes(next));
+
+      if (!sub) {
+        if (!metadata.execute) {
+          throw new UsageError(
+            `Unknown subcommand '${next}' for '${path.join(' ')}'. Available: ${Object.keys(metadata.subcommands).join(', ')}`
+          );
+        }
+        break;
+      }
+
+      definition = sub;
+      metadata = sub;
+      path.push(next);
+      tokens = tokens.slice(1);
+    }
+
+    const wantsHelp = tokens.some(token => HELP_FLAGS.has(token));
+
+    return { definition, metadata, path, tokens, wantsHelp, useDefaultHandler: false };
+  }
+
+  private entry(name: string, tokens: string[], wantsHelp: boolean): Resolution {
+    const definition = this.commands[name] ?? null;
+    return {
+      definition,
+      metadata: definition ? describe(definition) : null,
+      path: [name],
+      tokens,
+      wantsHelp,
+      useDefaultHandler: false
+    };
+  }
+
+  /** Parse a resolved invocation's tokens against the command's declarations. */
+  parse(resolution: Resolution, command: Command | null): ParseResult {
+    const strict =
+      this.routingOptions?.strictOptions !== 'off' && declaresSurface(command ?? resolution.metadata);
+
+    if (!strict && !declaresSurface(command ?? resolution.metadata)) {
+      return parseLegacy(resolution.tokens);
+    }
+
+    return parseArgv(resolution.tokens, {
+      options: (command ?? resolution.metadata)?.options ?? {},
+      args: (command ?? resolution.metadata)?.args ?? {},
+      strict
+    });
+  }
+
+  /**
    * Route and execute. Returns whatever the command returned so the caller can
-   * derive an exit code from it — discarding it here is what made returned
-   * failures exit 0.
+   * derive an exit code from it — discarding it is what made returned failures
+   * exit 0.
    */
   async route(args: string[]): Promise<unknown> {
-    let [commandName = 'help', ...restArgs] = args;
-    let context: RouteContext = {
+    return (await this.routeDetailed(args)).result;
+  }
+
+  async routeDetailed(args: string[]): Promise<RouteOutcome> {
+    const [commandName = 'help', ...restArgs] = args;
+    const context: RouteContext = {
       commandName,
       args: restArgs,
-      options: this.parseOptions(restArgs)
+      options: parseLegacy(restArgs).options
     };
 
     try {
-      // Before route hook
       if (this.hooks?.onBeforeRoute) {
         await this.hooks.onBeforeRoute(context);
       }
 
-      // Try custom router first
       if (this.routingOptions?.customRouter) {
-        const customResult = this.routingOptions.customRouter(args);
-        if (customResult) {
-          commandName = customResult.command;
-          restArgs = customResult.args;
-          context = {
-            commandName,
-            args: restArgs,
-            options: this.parseOptions(restArgs)
+        const custom = this.routingOptions.customRouter(args);
+        const definition = custom ? this.commands[custom.command] : undefined;
+
+        if (custom && definition) {
+          const resolution: Resolution = {
+            definition,
+            metadata: describe(definition),
+            path: [custom.command],
+            tokens: custom.args,
+            wantsHelp: false,
+            useDefaultHandler: false
           };
-          
-          if (customResult.skipNormalRouting) {
-            // Use custom routing result directly
-            const commandDef = this.commands[commandName];
-            if (commandDef) {
-              return await this.executeCommand(commandDef, commandName, restArgs, context);
-            }
-          }
+          this.routingOptions.onResolved?.(resolution);
+          const outcome = await this.executeResolved(resolution, context);
+          await this.hooks?.onAfterRoute?.(context);
+          return outcome;
         }
       }
 
-      // Resolve command (handle lazy loading)
-      let commandDef = this.commands[commandName];
-      let subcommandPath: string[] = [commandName];
-      let remainingArgs = restArgs;
+      const resolution = this.resolve(args);
+      this.routingOptions?.onResolved?.(resolution);
+      const outcome = await this.executeResolved(resolution, context);
 
-      if (!commandDef) {
-        // Check aliases
-        const aliasedCommand = this.findByAlias(commandName);
-        if (aliasedCommand) {
-          commandDef = aliasedCommand;
-        } else {
-          // Try default command or handler
-          if (this.routingOptions?.defaultCommand) {
-            const defaultCommandDef = this.commands[this.routingOptions.defaultCommand];
-            if (defaultCommandDef) {
-              commandDef = defaultCommandDef;
-              commandName = this.routingOptions.defaultCommand;
-              restArgs = args; // Use original args for default command
-              remainingArgs = args;
-              subcommandPath = [this.routingOptions.defaultCommand];
-            } else {
-              throw new Error(`Default command '${this.routingOptions.defaultCommand}' not found`);
-            }
-          } else if (this.routingOptions?.defaultHandler) {
-            // Execute default handler directly
-            const handlerResult = await this.routingOptions.defaultHandler({
-              args: args,
-              options: this.parseOptions(args)
-            });
-
-            // After route hook
-            if (this.hooks?.onAfterRoute) {
-              await this.hooks.onAfterRoute(context);
-            }
-            return handlerResult;
-          } else {
-            throw new Error(`Unknown command: ${commandName}`);
-          }
-        }
-      }
-
-      // If it's a lazy-loaded command, resolve it
-      if (typeof commandDef === 'function') {
-        const startTime = performance.now();
-        commandDef = await commandDef();
-        const loadTime = performance.now() - startTime;
-
-        const logger = this.registry.get(LoggerToken);
-        logger.debug(`Loaded command '${commandName}' in ${loadTime.toFixed(1)}ms`);
-      }
-
-      // Check for subcommands
-      if (commandDef.subcommands && remainingArgs.length > 0) {
-        const potentialSubcommand = remainingArgs[0];
-        
-        // Don't treat options as subcommands
-        if (!potentialSubcommand.startsWith('-')) {
-          const subcommand = commandDef.subcommands[potentialSubcommand];
-          
-          if (subcommand) {
-            commandDef = subcommand;
-            subcommandPath.push(potentialSubcommand);
-            remainingArgs = remainingArgs.slice(1);
-          } else if (!commandDef.execute) {
-            // If parent command has no execute and invalid subcommand
-            throw new Error(`Unknown subcommand '${potentialSubcommand}' for command '${commandName}'. Available subcommands: ${Object.keys(commandDef.subcommands).join(', ')}`);
-          }
-        }
-      }
-
-      // If command has subcommands but no execute function and no subcommand was provided
-      if (commandDef.subcommands && !commandDef.execute && remainingArgs.filter(arg => !arg.startsWith('-')).length === 0) {
-        // Show help for the command
-        const helpCommand = this.commands.help || this.commands.Help;
-        if (helpCommand) {
-          const helpContext: CommandContext = {
-            args: [commandName],
-            options: {},
-            registry: this.registry
-          };
-          
-          if (typeof helpCommand === 'function') {
-            const resolvedHelp = await helpCommand();
-            if (resolvedHelp.execute) {
-              await resolvedHelp.execute(helpContext);
-            }
-          } else {
-            if (helpCommand.execute) {
-              await helpCommand.execute(helpContext);
-            }
-          }
-          return;
-        }
-      }
-
-      const result = await this.executeCommand(commandDef, commandName, remainingArgs, context, subcommandPath);
-
-      // After route hook
       if (this.hooks?.onAfterRoute) {
         await this.hooks.onAfterRoute(context);
       }
 
-      return result;
+      return outcome;
     } catch (error) {
-      // Error hook
       if (this.hooks?.onError) {
         await this.hooks.onError(error as Error, context);
 
         // The hook consumed the error, but the command still failed. Report a
         // failure result so the caller cannot exit 0 on a handled error.
-        return { success: false, error: error as Error };
-      } else {
-        throw error;
+        return { result: { success: false, error: error as Error }, command: context.commandName };
       }
+      throw error;
     }
   }
 
-  private parseOptions(args: string[]): Record<string, any> {
-    const options: Record<string, any> = {};
-
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
-
-      if (arg.startsWith('--')) {
-        const [key, value] = arg.slice(2).split('=');
-        if (value !== undefined) {
-          options[key] = value;
-        } else if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
-          options[key] = args[++i];
-        } else {
-          options[key] = true;
-        }
-      } else if (arg.startsWith('-') && arg.length === 2) {
-        const key = arg.slice(1);
-        if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
-          options[key] = args[++i];
-        } else {
-          options[key] = true;
-        }
-      }
+  /** Execute an already-resolved invocation. */
+  async executeResolved(resolution: Resolution, context: RouteContext): Promise<RouteOutcome> {
+    if (resolution.useDefaultHandler) {
+      const result = await this.routingOptions!.defaultHandler!({
+        args: resolution.tokens,
+        options: parseLegacy(resolution.tokens).options
+      });
+      return { result, command: resolution.path.join(' ') || '(default)' };
     }
 
-    return options;
-  }
-
-  private findByAlias(alias: string): CommandDefinition | undefined {
-    for (const [, commandDef] of Object.entries(this.commands)) {
-      // For lazy-loaded commands, we can't check aliases without loading
-      if (typeof commandDef === 'function') {
-        continue;
-      }
-      
-      if (commandDef.aliases?.includes(alias)) {
-        return commandDef;
-      }
-    }
-    return undefined;
-  }
-
-  private async executeCommand(
-    commandDef: CommandDefinition,
-    commandName: string,
-    remainingArgs: string[],
-    context: RouteContext,
-    subcommandPath: string[] = [commandName]
-  ): Promise<unknown> {
-    // Resolve lazy-loaded command if needed
-    let resolvedCommand = commandDef;
-    if (typeof resolvedCommand === 'function') {
-      resolvedCommand = await resolvedCommand();
+    if (resolution.wantsHelp) {
+      return this.runHelpFor(resolution.path);
     }
 
-    // Execute command with middleware
+    let command = await resolveCommand(resolution.definition!);
+
+    // A parent that groups subcommands and has nothing to run itself: show its
+    // help rather than failing, which is what 1.x did and what a person expects
+    // from `mycli dns` with no verb.
+    if (command.subcommands && !command.execute) {
+      return this.runHelpFor(resolution.path);
+    }
+
+    const parsed = this.parse(resolution, command);
+
+    if (parsed.warnings.length > 0) {
+      const logger = this.registry.get(LoggerToken);
+      for (const warning of parsed.warnings) logger.warn(warning);
+    }
+
+    const declaredArgs = command.args ?? {};
+
     let commandContext: CommandContext = {
-      args: remainingArgs.filter(arg => !arg.startsWith('-')),
-      options: context.options,
-      registry: this.registry
+      args: parsed.positionals,
+      options: parsed.options,
+      registry: this.registry,
+      argv: parsed.passthrough,
+      ...(Object.keys(declaredArgs).length > 0
+        ? { namedArgs: bindArgs(parsed.positionals, declaredArgs) }
+        : {}),
+      ...this.routingOptions?.contextExtras?.()
     };
 
-    // Apply beforeExecute hook if provided
     if (this.routingOptions?.beforeExecute) {
       const transformed = this.routingOptions.beforeExecute({
-        command: commandName,
+        command: resolution.path[resolution.path.length - 1] ?? '',
         args: commandContext.args,
         options: commandContext.options
       });
-      
+
       if (transformed) {
-        commandContext = {
-          args: transformed.args,
-          options: transformed.options,
-          registry: this.registry
-        };
+        commandContext = { ...commandContext, args: transformed.args, options: transformed.options };
       }
     }
 
-    // Apply middleware chain.
-    //
-    // The command's return value is captured in a closure rather than read off
-    // `next()`. Middleware is publicly typed `next: () => Promise<void>` and
-    // does not forward what the command returned, so widening that signature
-    // would break every existing middleware's types for no gain.
-    const executeWithMiddleware = async (): Promise<unknown> => {
-      let index = 0;
-      let commandResult: unknown;
+    const result = await this.runMiddleware(command, commandContext, resolution.path);
 
-      const next = async (): Promise<void> => {
-        if (index < this.middleware.length) {
-          const currentMiddleware = this.middleware[index++];
-          await currentMiddleware(commandContext, resolvedCommand, next);
-        } else {
-          if (!resolvedCommand.execute) {
-            throw new Error(`Command '${subcommandPath.join(' ')}' requires a subcommand`);
-          }
-          commandResult = await resolvedCommand.execute(commandContext);
+    return {
+      result,
+      command: resolution.path.join(' '),
+      render: command.render as ((data: unknown) => string) | undefined
+    };
+  }
+
+  private async runHelpFor(path: string[]): Promise<RouteOutcome> {
+    const helpDefinition = this.commands.help;
+    if (!helpDefinition) {
+      throw new UsageError(`No help available for '${path.join(' ')}'.`);
+    }
+
+    const help = await resolveCommand(helpDefinition);
+    const args = path[0] === 'help' ? [] : path;
+
+    const result = await help.execute!({
+      args,
+      options: {},
+      registry: this.registry,
+      ...this.routingOptions?.contextExtras?.()
+    });
+
+    return { result, command: 'help', render: help.render as ((data: unknown) => string) | undefined };
+  }
+
+  /**
+   * Apply the middleware chain.
+   *
+   * The command's return value is captured in a closure rather than read off
+   * `next()`. Middleware is publicly typed `next: () => Promise<void>` and does
+   * not forward what the command returned, so widening that signature would
+   * break every existing middleware's types for no gain.
+   */
+  private async runMiddleware(
+    command: Command,
+    context: CommandContext,
+    path: string[]
+  ): Promise<unknown> {
+    let index = 0;
+    let commandResult: unknown;
+
+    const next = async (): Promise<void> => {
+      if (index < this.middleware.length) {
+        const current = this.middleware[index++];
+        await current(context, command, next);
+      } else {
+        if (!command.execute) {
+          throw new UsageError(`Command '${path.join(' ')}' requires a subcommand`);
         }
-      };
-
-      await next();
-
-      return commandResult;
+        commandResult = await command.execute(context);
+      }
     };
 
-    return await executeWithMiddleware();
+    await next();
+
+    return commandResult;
+  }
+
+  private findByAlias(alias: string): CommandDefinition | undefined {
+    for (const definition of Object.values(this.commands)) {
+      const metadata = describe(definition);
+      if (metadata?.aliases?.includes(alias)) return definition;
+    }
+    return undefined;
   }
 }

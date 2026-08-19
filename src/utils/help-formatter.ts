@@ -1,165 +1,209 @@
-import pc from 'picocolors';
-import type { Command, HelpOptions } from '../types/index.ts';
+import { colors } from './colors.ts';
+import type { Command, CommandDefinition, HelpOptions } from '../types/index.ts';
+import type { Manifest, ManifestCommand } from '../core/manifest.ts';
 
 export interface HelpCommandOptions {
   name: string;
-  commands: Record<string, Command | (() => Promise<Command>)>;
+  description?: string;
+  commands: Record<string, CommandDefinition>;
   options?: HelpOptions;
 }
 
-export function formatCommandHelp(command: Command, options?: HelpOptions): string {
-  if (options?.format === 'json') {
-    return JSON.stringify({
-      name: command.name,
-      description: command.description,
-      usage: command.usage,
-      examples: command.examples,
-      options: command.options,
-      args: command.args,
-      aliases: command.aliases
-    }, null, 2);
+/**
+ * Help is a rendering of the manifest, not a second hand-written description of
+ * the same commands. That is the only way the two cannot drift.
+ */
+
+function usageLine(command: ManifestCommand): string {
+  const positional = command.args
+    .map(arg => (arg.required ? `<${arg.name}>` : `[${arg.name}]`))
+    .join(' ');
+
+  const base = command.usage && command.usage !== command.path.join(' ') ? command.usage : command.path.join(' ');
+  return positional && !base.includes('<') && !base.includes('[') ? `${base} ${positional}` : base;
+}
+
+/** Full detail for one command: usage, arguments, options, examples. */
+export function formatManifestCommand(command: ManifestCommand): string {
+  const lines: string[] = [];
+
+  lines.push(colors.bold(command.path.join(' ')));
+  if (command.description) lines.push(command.description);
+  lines.push('');
+
+  lines.push(colors.bold('Usage:'));
+  lines.push(`  ${usageLine(command)}`);
+  lines.push('');
+
+  if (command.args.length > 0) {
+    lines.push(colors.bold('Arguments:'));
+    const width = Math.max(...command.args.map(arg => arg.name.length));
+    for (const arg of command.args) {
+      const required = arg.required ? ' (required)' : '';
+      const choices = arg.choices ? ` {${arg.choices.join('|')}}` : '';
+      lines.push(`  ${arg.name.padEnd(width + 2)}${arg.description}${required}${choices} [${arg.type}]`);
+    }
+    lines.push('');
   }
 
-  const lines: string[] = [];
-  
-  // Header
-  lines.push(pc.bold(command.name));
-  lines.push(command.description);
-  lines.push('');
-  
-  // Usage
-  lines.push(pc.bold('Usage:'));
-  let usage = command.usage || command.name;
-  if (command.args && Object.keys(command.args).length > 0) {
-    const argNames = Object.keys(command.args);
-    const argUsage = argNames.map(name => {
-      const spec = command.args![name];
-      return spec.required ? `<${name}>` : `[${name}]`;
-    }).join(' ');
-    usage += ` ${argUsage}`;
-  }
-  lines.push(`  ${usage}`);
-  lines.push('');
-  
-  // Arguments
-  if (command.args && Object.keys(command.args).length > 0) {
-    lines.push(pc.bold('Arguments:'));
-    for (const [name, argSpec] of Object.entries(command.args)) {
-      const required = argSpec.required ? ' (required)' : '';
-      const type = argSpec.type ? ` [${argSpec.type}]` : '';
-      lines.push(`  ${name}  ${argSpec.description}${required}${type}`);
+  const visibleSubcommands = command.subcommands;
+  if (visibleSubcommands.length > 0) {
+    lines.push(colors.bold('Subcommands:'));
+    const width = Math.max(...visibleSubcommands.map(sub => sub.name.length));
+    for (const sub of visibleSubcommands) {
+      lines.push(`  ${sub.name.padEnd(width + 2)}${sub.description}`);
     }
     lines.push('');
-  }
-  
-  // Subcommands
-  if (command.subcommands && Object.keys(command.subcommands).length > 0) {
-    lines.push(pc.bold('Subcommands:'));
-    const subcommandEntries = Object.entries(command.subcommands);
-    const maxNameLength = Math.max(...subcommandEntries.map(([name]) => name.length));
-    
-    for (const [name, subcommand] of subcommandEntries) {
-      const paddedName = name.padEnd(maxNameLength + 2);
-      lines.push(`  ${paddedName}${subcommand.description}`);
-    }
-    lines.push('');
-    lines.push(`Run '${command.name} <subcommand> --help' for detailed information about a subcommand.`);
+    lines.push(`Run '${command.path.join(' ')} <subcommand> --help' for detail on a subcommand.`);
     lines.push('');
   }
-  
-  // Options
-  if (command.options && Object.keys(command.options).length > 0) {
-    lines.push(pc.bold('Options:'));
-    for (const [name, option] of Object.entries(command.options)) {
-      const flags = option.alias ? `  -${option.alias}, --${name}` : `  --${name}`;
+
+  if (command.options.length > 0) {
+    lines.push(colors.bold('Options:'));
+    for (const option of command.options) {
+      const flags = option.alias ? `  -${option.alias}, --${option.name}` : `  --${option.name}`;
       const required = option.required ? ' (required)' : '';
-      const defaultValue = option.default !== undefined ? ` [default: ${option.default}]` : '';
-      lines.push(`${flags}  ${option.description}${required}${defaultValue}`);
+      const fallback = option.default !== undefined ? ` [default: ${String(option.default)}]` : '';
+      const fromEnv = option.env ? ` [env: ${option.env}]` : '';
+      const choices = option.choices ? ` {${option.choices.join('|')}}` : '';
+      lines.push(`${flags}  ${option.description}${required}${choices}${fallback}${fromEnv}`);
     }
     lines.push('');
   }
-  
-  // Examples
-  if (command.examples && command.examples.length > 0) {
-    lines.push(pc.bold('Examples:'));
-    for (const example of command.examples) {
-      lines.push(`  ${example}`);
-    }
+
+  if (command.exitCodes.length > 0) {
+    lines.push(colors.bold('Exit codes:'));
+    for (const entry of command.exitCodes) lines.push(`  ${entry.code}  ${entry.meaning}`);
     lines.push('');
   }
-  
-  // Aliases
-  if (command.aliases && command.aliases.length > 0) {
-    lines.push(pc.bold('Aliases:'));
+
+  if (command.examples.length > 0) {
+    lines.push(colors.bold('Examples:'));
+    for (const example of command.examples) lines.push(`  ${example}`);
+    lines.push('');
+  }
+
+  if (command.aliases.length > 0) {
+    lines.push(colors.bold('Aliases:'));
     lines.push(`  ${command.aliases.join(', ')}`);
     lines.push('');
   }
-  
+
+  return lines.join('\n').trimEnd();
+}
+
+/** One line per command — the top-level view. */
+export function formatManifest(manifest: Manifest): string {
+  const lines: string[] = [];
+
+  lines.push(colors.bold(manifest.name) + (manifest.version ? ` ${manifest.version}` : ''));
+  if (manifest.description) lines.push(manifest.description);
+  lines.push('');
+  lines.push(colors.bold('Commands:'));
+
+  const listed = manifest.commands;
+  const width = listed.length > 0 ? Math.max(...listed.map(command => command.name.length)) : 0;
+
+  for (const command of listed) {
+    lines.push(`  ${command.name.padEnd(width + 2)}${command.description}`);
+  }
+
+  lines.push('');
+  lines.push(`Run '${manifest.name} help <command>' for detail, or '${manifest.name} manifest' for the machine-readable surface.`);
+
   return lines.join('\n');
+}
+
+/**
+ * 1.x entry points, kept so consumers importing them keep compiling. They now
+ * project through the manifest like everything else.
+ */
+export function formatCommandHelp(command: Command, options?: HelpOptions): string {
+  if (options?.format === 'json') {
+    // Deliberately the 1.x shape, keyed by name, not the manifest's array of
+    // entries. `help --json` returns the manifest; this legacy entry point
+    // keeps its own contract with whoever already calls it.
+    return JSON.stringify(
+      {
+        name: command.name,
+        description: command.description,
+        usage: command.usage,
+        examples: command.examples,
+        options: command.options,
+        args: command.args,
+        aliases: command.aliases
+      },
+      null,
+      2
+    );
+  }
+
+  return formatManifestCommand(toManifestCommand(command));
 }
 
 export async function formatGeneralHelp(config: HelpCommandOptions): Promise<string> {
-  const lines: string[] = [];
-  
-  // Header
-  lines.push(pc.bold(config.name));
-  lines.push('');
-  
-  // Commands
-  lines.push(pc.bold('Available Commands:'));
-  
-  const commandEntries: [string, string][] = [];
-  const commandNames = Object.keys(config.commands);
-  const maxNameLength = commandNames.length > 0 ? Math.max(...commandNames.map(name => name.length)) : 0;
-  
-  for (const [name, commandDef] of Object.entries(config.commands)) {
-    let description = 'Loading...';
-    
-    // For non-lazy commands, get description directly
-    if (typeof commandDef !== 'function') {
-      description = commandDef.description;
-    }
-    
-    commandEntries.push([name, description]);
+  const { buildManifest } = await import('../core/manifest.ts');
+  return formatManifest(
+    buildManifest({
+      name: config.name,
+      version: '',
+      description: config.description,
+      commands: config.commands
+    })
+  );
+}
+
+export async function formatAllExamples(commands: Record<string, CommandDefinition>): Promise<string> {
+  const { describe } = await import('../commands/lazy.ts');
+  const lines: string[] = [colors.bold('Command Examples:'), ''];
+
+  for (const [name, definition] of Object.entries(commands)) {
+    const metadata = describe(definition) ?? (typeof definition === 'function' ? await definition() : null);
+    if (!metadata?.examples?.length) continue;
+
+    lines.push(colors.bold(name));
+    for (const example of metadata.examples) lines.push(`  ${example}`);
+    lines.push('');
   }
-  
-  // Sort commands alphabetically
-  commandEntries.sort((a, b) => a[0].localeCompare(b[0]));
-  
-  for (const [name, description] of commandEntries) {
-    const paddedName = name.padEnd(maxNameLength + 2);
-    lines.push(`  ${paddedName}${description}`);
-  }
-  
-  lines.push('');
-  lines.push(`Run '${config.name} help [command]' for detailed information about a command.`);
-  
+
   return lines.join('\n');
 }
 
-export async function formatAllExamples(commands: Record<string, Command | (() => Promise<Command>)>): Promise<string> {
-  const lines: string[] = [];
-  
-  lines.push(pc.bold('Command Examples:'));
-  lines.push('');
-  
-  for (const [name, commandDef] of Object.entries(commands)) {
-    let command: Command;
-    
-    if (typeof commandDef === 'function') {
-      command = await commandDef();
-    } else {
-      command = commandDef;
-    }
-    
-    if (command.examples && command.examples.length > 0) {
-      lines.push(pc.bold(name));
-      for (const example of command.examples) {
-        lines.push(`  ${example}`);
-      }
-      lines.push('');
-    }
-  }
-  
-  return lines.join('\n');
+function toManifestCommand(command: Command, path: string[] = [command.name]): ManifestCommand {
+  return {
+    name: command.name,
+    path,
+    description: command.description ?? '',
+    usage: command.usage ?? path.join(' '),
+    aliases: command.aliases ?? [],
+    described: true,
+    lazy: false,
+    args: Object.entries(command.args ?? {}).map(([name, spec]) => ({
+      name,
+      type: spec.type,
+      description: spec.description ?? '',
+      required: Boolean(spec.required),
+      ...(spec.choices ? { choices: spec.choices } : {}),
+      ...(spec.default !== undefined ? { default: spec.default } : {})
+    })),
+    options: Object.entries(command.options ?? {}).map(([name, spec]) => ({
+      name,
+      type: spec.type,
+      description: spec.description ?? '',
+      required: Boolean(spec.required),
+      ...(spec.alias ? { alias: spec.alias } : {}),
+      ...(spec.choices ? { choices: spec.choices } : {}),
+      ...(spec.default !== undefined ? { default: spec.default } : {}),
+      ...(spec.env ? { env: spec.env } : {})
+    })),
+    examples: command.examples ?? [],
+    exitCodes: Object.entries(command.exitCodes ?? {}).map(([code, meaning]) => ({
+      code: Number(code),
+      meaning: String(meaning)
+    })),
+    shadows: [],
+    subcommands: Object.entries(command.subcommands ?? {}).map(([name, sub]) =>
+      toManifestCommand(sub, [...path, name])
+    )
+  };
 }

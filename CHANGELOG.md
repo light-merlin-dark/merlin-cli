@@ -5,6 +5,126 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0]
+
+Commands are read by machines more often than by people now. 1.x already
+guaranteed that an exit code told the truth; 2.0 makes the same guarantee for
+everything else a caller observes — which stream carried what, whether the
+output parses, and whether the tool can say what it does without being asked
+one command at a time.
+
+The mechanism is a single change of shape: a command computes a result and
+returns it, and every observable is a projection of that one result. The exit
+code, the human text, the JSON envelope, the NDJSON stream. They cannot
+disagree, because there is only one source.
+
+Everything is written down in [CONTRACT.md](CONTRACT.md) as numbered clauses,
+and every clause that says MUST has a test that runs against the packed tarball
+in a real subprocess. The suite parses the contract and fails the build if a
+clause has no test.
+
+### Added — `--json` and `--ndjson`, on every command, for free
+
+```
+$ mycli deploy staging --json
+{"ok":true,"code":0,"command":"deploy","data":{"url":"…"},"error":null,
+ "cli":{"name":"mycli","version":"1.0.0","contract":"2.0"}}
+```
+
+1.x commands already returned values; the framework used them only to derive an
+exit code and then threw them away. Now the same value is the machine payload,
+so **most existing commands gain `--json` with no code change at all.**
+
+`ctx.emit(item)` streams one NDJSON line per item, envelope last, in constant
+memory.
+
+In machine mode the framework also relays anything written directly to stdout
+onto stderr as `{"ev":"out","text":"…"}`. Consumers print with `console.log`
+everywhere and cannot all be rewritten; making the framework own the channel is
+what lets `--json` work on day one for CLIs written years before this.
+
+A command that declares its own `json` or `ndjson` option keeps its own meaning
+and the framework defers.
+
+### Added — `manifest`, a CLI that describes itself
+
+One deterministic call returns the whole surface: every command and subcommand,
+arguments, options, environment fallbacks, choices, examples, documented exit
+codes. No command implementation is loaded to produce it, so it costs the same
+on a five-hundred-command CLI as on a five-command one. `help` is a projection
+of the same data, so the two cannot drift.
+
+`lazy({ name, description, load })` declares a command whose metadata is known
+immediately and whose module loads on first use. 1.x lazy commands were opaque
+thunks: help could not describe them and aliases could not find them without
+loading every module, so it did not try.
+
+### Added — cancellation, and prompts that cannot hang
+
+Every command receives `ctx.signal`. SIGINT and SIGTERM abort it, allow a grace
+period (`gracePeriodMs`, 3 s by default) and then leave with 130 or 143. A
+cleanup handler that swallows the abort and returns normally no longer reports
+success.
+
+A prompt with no terminal now fails immediately with exit 2 instead of blocking
+forever, naming the question and — when the prompter declares a `fallbackFlag`
+— the flag that would have answered it.
+
+### Added — a written grammar
+
+`--`, `--name=value`, `--no-name`, `-abc` bundling, `-ovalue`, negative numbers
+as positionals, arrays that accumulate, `choices`, `env:` fallbacks, and a fixed
+validation order. 1.x parsed flags with a loop that guessed.
+
+### Changed — stdout is payload, stderr is commentary
+
+Every logger level now writes to stderr, including `info` and `success`, which
+1.x sent to stdout and which therefore ended up inside anything that piped a
+CLI. `mycli export | jq .` works.
+
+### Changed — usage errors exit 2
+
+Unknown command, unknown subcommand, an undeclared option on a command that
+declares a surface, a bad value, a missing required argument, a prompt with no
+terminal. "You called me wrong" and "I tried and failed" need different fixes.
+
+Strictness is earned by declaring: a command that passed neither `args` nor
+`options` keeps 1.x's permissive parsing exactly.
+
+### Changed — zero runtime dependencies
+
+`picocolors` and `prompts` are gone, replaced by about sixty and one hundred and
+twenty lines of first-party code. Colour now follows a rule the contract can
+test: ANSI bytes never reach a pipe.
+
+### Changed — smaller things worth knowing
+
+- `version` prints `<name> <version>`, not `v<version>`.
+- `--help`, `-h` and `--version` work at the top level; 1.x reported them as
+  unknown commands.
+- `cli.run()` exits the process on success too, so a stray `setInterval` cannot
+  keep a finished CLI alive. Set `exitProcess: false` to keep the old behaviour.
+- Help and the manifest list commands in declaration order, not alphabetically.
+- `createCommand` now passes `subcommands` through. It silently dropped them
+  before, which meant subcommands declared that way never worked.
+- Signal handling moved out of `bootstrap`, where SIGINT exited **0**.
+
+### Fixed — `table()` and `box()` joined lines with a literal backslash-n
+
+Both used `'\\n'` where `'\n'` was meant, so every row of a table came back on
+one line.
+
+### Compatibility
+
+Every export published in 1.2.0 still resolves; a conformance test checks the
+2.0 surface against the real published one rather than a hand-kept list.
+`ctx.args` is still a `string[]` — typed positionals arrive on `ctx.namedArgs`
+— because redefining it would have broken every command in every consumer.
+
+The seven behavioural changes above are enumerated with mechanical fixes in the
+README's upgrade table, and every consumer in the estate was audited against
+them before this was published.
+
 ## [1.2.0]
 
 Open source, and a third of the code gone. Published as

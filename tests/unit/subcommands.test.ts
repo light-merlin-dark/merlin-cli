@@ -3,23 +3,19 @@ import { createCLI } from '../../src/index.ts';
 import type { Command } from '../../src/types/index.ts';
 
 describe('Subcommand Support', () => {
-  let originalLog: typeof console.log;
-  let originalError: typeof console.error;
+  // 2.0 writes payload and commentary through the CLI's own streams rather
+  // than through `console`, so tests observe them the way a shell would.
   let output: string[] = [];
   let errorOutput: string[] = [];
+  let streams: { stdout: { write(c: string): boolean }; stderr: { write(c: string): boolean } };
 
   beforeEach(() => {
-    originalLog = console.log;
-    originalError = console.error;
     output = [];
     errorOutput = [];
-    console.log = (...args: any[]) => output.push(args.join(' '));
-    console.error = (...args: any[]) => errorOutput.push(args.join(' '));
-  });
-
-  afterEach(() => {
-    console.log = originalLog;
-    console.error = originalError;
+    streams = {
+      stdout: { write: (chunk: string) => { output.push(chunk); return true; } },
+      stderr: { write: (chunk: string) => { errorOutput.push(chunk); return true; } }
+    };
   });
 
   it('should execute subcommands correctly', async () => {
@@ -61,6 +57,7 @@ describe('Subcommand Support', () => {
       name: 'test-cli',
       version: '1.0.0',
       exitProcess: false,
+      streams,
       commands: { dns: dnsCommand }
     });
 
@@ -100,6 +97,7 @@ describe('Subcommand Support', () => {
       name: 'test-cli',
       version: '1.0.0',
       exitProcess: false,
+      streams,
       commands: { dns: dnsCommand }
     });
 
@@ -131,6 +129,7 @@ describe('Subcommand Support', () => {
       name: 'test-cli',
       version: '1.0.0',
       exitProcess: false,
+      streams,
       commands: { dns: dnsCommand }
     });
 
@@ -139,9 +138,11 @@ describe('Subcommand Support', () => {
     // file kill the test runner mid-suite instead of failing honestly.
     const code = await cli.run(['dns', 'invalid']);
 
-    expect(code).toBe(1);
+    // A caller that named a subcommand that does not exist called wrong, which
+    // is exit 2 rather than a runtime failure.
+    expect(code).toBe(2);
     expect(errorOutput.join('\n')).toContain("Unknown subcommand 'invalid'");
-    expect(errorOutput.join('\n')).toContain('Available subcommands: add');
+    expect(errorOutput.join('\n')).toContain('Available: add');
   });
 
   it('should handle nested help correctly', async () => {
@@ -179,6 +180,7 @@ describe('Subcommand Support', () => {
       name: 'test-cli',
       version: '1.0.0',
       exitProcess: false,
+      streams,
       commands: { dns: dnsCommand }
     });
 
@@ -222,6 +224,7 @@ describe('Subcommand Support', () => {
       name: 'test-cli',
       version: '1.0.0',
       exitProcess: false,
+      streams,
       commands: { git: gitCommand }
     });
 
@@ -270,6 +273,7 @@ describe('Subcommand Support', () => {
       name: 'test-cli',
       version: '1.0.0',
       exitProcess: false,
+      streams,
       commands: { dns: dnsCommand }
     });
 

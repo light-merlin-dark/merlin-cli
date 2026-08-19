@@ -1,0 +1,450 @@
+{
+  "contract": "2.0",
+  "clauses": [
+    {
+      "id": "TRUTH-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "truth.conformance.test.ts: a command returning data exits 0",
+        "truth.conformance.test.ts: a command returning nothing exits 0",
+        "truth.conformance.test.ts: returning { success: false } exits 1",
+        "truth.conformance.test.ts: returning { exitCode: n } exits n",
+        "truth.conformance.test.ts: throwing exits 1",
+        "truth.conformance.test.ts: reporting an error on the logger exits 1 even when nothing is returned"
+      ]
+    },
+    {
+      "id": "TRUTH-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "truth.conformance.test.ts: an out-of-range exit code collapses to 1 rather than wrapping to 0"
+      ]
+    },
+    {
+      "id": "TRUTH-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "truth.conformance.test.ts: the rule applies to a logger the consumer registers later",
+        "truth.conformance.test.ts: a consumer logger keeps its own methods and properties"
+      ]
+    },
+    {
+      "id": "TRUTH-4",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "truth.conformance.test.ts: ok, code and the process status are the same fact"
+      ]
+    },
+    {
+      "id": "TRUTH-5",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "truth.conformance.test.ts: an onError hook cannot turn a failure into a success"
+      ]
+    },
+    {
+      "id": "STREAM-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "streams.conformance.test.ts: stdout carries only the rendered payload"
+      ]
+    },
+    {
+      "id": "STREAM-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "streams.conformance.test.ts: every logger level goes to stderr, including info and success",
+        "streams.conformance.test.ts: errors go to stderr"
+      ]
+    },
+    {
+      "id": "STREAM-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "streams.conformance.test.ts: a command with no payload writes nothing to stdout"
+      ]
+    },
+    {
+      "id": "STREAM-4",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "streams.conformance.test.ts: a prompt is written to stderr, never stdout"
+      ]
+    },
+    {
+      "id": "MODE-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "machine.conformance.test.ts: stdout carries exactly one JSON document",
+        "machine.conformance.test.ts: the envelope has the declared shape and nothing else",
+        "machine.conformance.test.ts: data is the return value minus the outcome keys",
+        "machine.conformance.test.ts: a failure reported only through the logger still has an error message",
+        "machine.conformance.test.ts: a stack is withheld unless --verbose asks for it"
+      ]
+    },
+    {
+      "id": "MODE-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "machine.conformance.test.ts: commentary becomes NDJSON events on stderr",
+        "machine.conformance.test.ts: a stray console.log is relayed to stderr instead of corrupting the document"
+      ]
+    },
+    {
+      "id": "MODE-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "machine.conformance.test.ts: each emitted item is one line, and the envelope is the last"
+      ]
+    },
+    {
+      "id": "MODE-4",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "machine.conformance.test.ts: a pipe does not switch the output shape"
+      ]
+    },
+    {
+      "id": "MODE-5",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "machine.conformance.test.ts: the manifest records the shadowing"
+      ]
+    },
+    {
+      "id": "MODE-6",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "machine.conformance.test.ts: help, version and manifest all honour --json"
+      ]
+    },
+    {
+      "id": "DESC-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "describe.conformance.test.ts: the manifest covers every command, argument and option",
+        "describe.conformance.test.ts: subcommands are described to their full depth"
+      ]
+    },
+    {
+      "id": "DESC-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "describe.conformance.test.ts: describing a lazy command does not load it"
+      ]
+    },
+    {
+      "id": "DESC-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "describe.conformance.test.ts: two manifest runs are byte-identical"
+      ]
+    },
+    {
+      "id": "DESC-4",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "describe.conformance.test.ts: help is a projection of the manifest, not a second description",
+        "describe.conformance.test.ts: top-level help is one line per command",
+        "describe.conformance.test.ts: help for one command shows its full detail",
+        "describe.conformance.test.ts: --help on a command shows help instead of executing it"
+      ]
+    },
+    {
+      "id": "DESC-5",
+      "normative": false,
+      "kind": "runtime",
+      "tests": [
+        "describe.conformance.test.ts: every command in the fixture declares at least one example"
+      ]
+    },
+    {
+      "id": "DESC-6",
+      "normative": false,
+      "kind": "runtime",
+      "tests": [
+        "describe.conformance.test.ts: the completions name is reserved and not yet claimed"
+      ]
+    },
+    {
+      "id": "GRAM-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "grammar.conformance.test.ts: -- ends option parsing and the rest is verbatim",
+        "grammar.conformance.test.ts: a reserved flag after -- is data, not a mode",
+        "grammar.conformance.test.ts: --name=value and --name value are the same",
+        "grammar.conformance.test.ts: --name sets a declared boolean and --no-name clears it",
+        "grammar.conformance.test.ts: -abc bundles declared boolean shorts",
+        "grammar.conformance.test.ts: -o value and -ovalue both bind",
+        "grammar.conformance.test.ts: a negative number is a positional, not an unknown short option"
+      ]
+    },
+    {
+      "id": "GRAM-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "grammar.conformance.test.ts: options and positionals may interleave",
+        "grammar.conformance.test.ts: order among positionals is preserved"
+      ]
+    },
+    {
+      "id": "GRAM-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "grammar.conformance.test.ts: a number option rejects non-numeric input instead of producing NaN",
+        "grammar.conformance.test.ts: an array option accumulates across repeats",
+        "grammar.conformance.test.ts: repeating a non-array option is last-wins with a warning",
+        "grammar.conformance.test.ts: a value outside the declared choices is a usage error"
+      ]
+    },
+    {
+      "id": "GRAM-4",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "grammar.conformance.test.ts: an undeclared option on a declared command is a usage error",
+        "grammar.conformance.test.ts: a command that declares nothing keeps permissive parsing",
+        "grammar.conformance.test.ts: the reserved flags are never an undeclared option"
+      ]
+    },
+    {
+      "id": "GRAM-5",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "grammar.conformance.test.ts: execute does not run when an earlier stage fails",
+        "grammar.conformance.test.ts: a missing required argument names the argument"
+      ]
+    },
+    {
+      "id": "GRAM-6",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "grammar.conformance.test.ts: subcommands resolve to the longest declared path",
+        "grammar.conformance.test.ts: a subcommand alias resolves"
+      ]
+    },
+    {
+      "id": "EXIT-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "truth.conformance.test.ts: an unknown command exits 2",
+        "truth.conformance.test.ts: an unknown subcommand exits 2 and lists the real ones"
+      ]
+    },
+    {
+      "id": "EXIT-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "truth.conformance.test.ts: calling wrong (2) is distinguishable from failing (1)"
+      ]
+    },
+    {
+      "id": "EXIT-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "truth.conformance.test.ts: an application code in 3-125 passes through",
+        "truth.conformance.test.ts: declared exit codes reach the manifest"
+      ]
+    },
+    {
+      "id": "ENV-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "streams.conformance.test.ts: no ANSI bytes reach a pipe",
+        "streams.conformance.test.ts: NO_COLOR suppresses colour even when it is forced on elsewhere",
+        "streams.conformance.test.ts: FORCE_COLOR overrides the absence of a TTY",
+        "streams.conformance.test.ts: TERM=dumb suppresses colour"
+      ]
+    },
+    {
+      "id": "ENV-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "streams.conformance.test.ts: progress writes nothing when stderr is not a terminal"
+      ]
+    },
+    {
+      "id": "ENV-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "streams.conformance.test.ts: output shape does not change because stdout is a pipe"
+      ]
+    },
+    {
+      "id": "ENV-4",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "streams.conformance.test.ts: an option can declare an environment fallback, and the manifest says so",
+        "streams.conformance.test.ts: an explicit flag beats the environment fallback"
+      ]
+    },
+    {
+      "id": "HANG-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "lifecycle.conformance.test.ts: a prompt with no terminal fails immediately with exit 2",
+        "lifecycle.conformance.test.ts: the message names the question",
+        "lifecycle.conformance.test.ts: a declared fallback flag is named in the message",
+        "lifecycle.conformance.test.ts: piping stdin does not silently answer a prompt"
+      ]
+    },
+    {
+      "id": "HANG-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "lifecycle.conformance.test.ts: machine mode is non-interactive by definition"
+      ]
+    },
+    {
+      "id": "HANG-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "lifecycle.conformance.test.ts: a stray timer does not keep a finished CLI alive"
+      ]
+    },
+    {
+      "id": "CANCEL-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "lifecycle.conformance.test.ts: the command sees the abort and can clean up"
+      ]
+    },
+    {
+      "id": "CANCEL-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "lifecycle.conformance.test.ts: SIGINT exits 130 even though the command returned normally",
+        "lifecycle.conformance.test.ts: SIGTERM exits 143",
+        "lifecycle.conformance.test.ts: a command that ignores the abort is still ended by the grace period"
+      ]
+    },
+    {
+      "id": "CANCEL-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "lifecycle.conformance.test.ts: an interrupted machine-mode run still emits its envelope"
+      ]
+    },
+    {
+      "id": "DET-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "describe.conformance.test.ts: help and version are byte-identical across runs",
+        "describe.conformance.test.ts: the environment does not leak into the manifest"
+      ]
+    },
+    {
+      "id": "DET-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "describe.conformance.test.ts: version prints exactly name, space, version, newline",
+        "describe.conformance.test.ts: --version is the same output as the version command"
+      ]
+    },
+    {
+      "id": "DET-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "describe.conformance.test.ts: commands and options appear in declaration order, never sorted"
+      ]
+    },
+    {
+      "id": "PERF-1",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "budget.conformance.test.ts: startup is O(1) in command count"
+      ]
+    },
+    {
+      "id": "PERF-2",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "budget.conformance.test.ts: the framework does not dominate its host"
+      ]
+    },
+    {
+      "id": "PERF-3",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "budget.conformance.test.ts: ndjson streaming does not grow the heap with the item count"
+      ]
+    },
+    {
+      "id": "PERF-4",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "budget.conformance.test.ts: the published bundle stays small enough to audit"
+      ]
+    },
+    {
+      "id": "COMPAT-1",
+      "normative": false,
+      "kind": "process",
+      "tests": []
+    },
+    {
+      "id": "COMPAT-2",
+      "normative": false,
+      "kind": "process",
+      "tests": []
+    },
+    {
+      "id": "COMPAT-3",
+      "normative": false,
+      "kind": "process",
+      "tests": []
+    },
+    {
+      "id": "COMPAT-4",
+      "normative": true,
+      "kind": "runtime",
+      "tests": [
+        "budget.conformance.test.ts: the contract version appears in every envelope and manifest"
+      ]
+    }
+  ]
+}

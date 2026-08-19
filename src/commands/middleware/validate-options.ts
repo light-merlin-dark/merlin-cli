@@ -1,4 +1,5 @@
-import type { CommandContext, Command, CommandDefinition, Middleware, OptionSpec } from '../../types/index.ts';
+import type { Command, Middleware, OptionSpec } from '../../types/index.ts';
+import { UsageError } from '../../core/errors.ts';
 
 export const validateOptions: Middleware = async (context, command, next) => {
   const { options: providedOptions } = context;
@@ -63,7 +64,7 @@ export const validateOptions: Middleware = async (context, command, next) => {
   }
 
   if (errors.length > 0) {
-    throw new Error(`Validation errors:\n${errors.join('\n')}`);
+    throw new UsageError(errors.join('\n'));
   }
 
   // Apply defaults

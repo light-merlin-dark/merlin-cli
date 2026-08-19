@@ -39,7 +39,13 @@ const TYPE_SYMBOLS = [
   'Middleware',
   'Logger',
   'Prompter',
-  'Token'
+  'Token',
+  'LazyCommand',
+  'Manifest',
+  'ManifestCommand',
+  'Envelope',
+  'OutputFormat',
+  'RunResult'
 ] as const;
 
 /** Runtime exports the README tells people to use. */
@@ -56,7 +62,19 @@ const DOCUMENTED_RUNTIME = [
   'createPrompter',
   'CommandRouter',
   'ServiceRegistry',
-  'resolveExitCode'
+  'resolveExitCode',
+  // 2.0 additions
+  'lazy',
+  'spawnCLI',
+  'runCLI',
+  'buildManifest',
+  'parseArgv',
+  'UsageError',
+  'extractData',
+  'createManifestCommand',
+  'RESERVED_OPTIONS',
+  'MANIFEST_SCHEMA',
+  'CONTRACT_VERSION'
 ] as const;
 
 describe('public API (built artifact)', () => {
@@ -74,6 +92,34 @@ describe('public API (built artifact)', () => {
 
     expect(r.stdout.trim()).toBe('[]');
     expect(r.code).toBe(0);
+  });
+
+  test('every 1.2.0 export still resolves, so no consumer breaks on upgrade', async () => {
+    // COMPAT-2 in practice, checked against the real published surface rather
+    // than a hand-kept list: this is exactly what `Object.keys()` returns on
+    // `@light-merlin-dark/merlin-cli@1.2.0`. A name that existed there and
+    // vanished here would break an import in a repo nobody rebuilt.
+    const PUBLISHED_1_2_0 = [
+      'CommandRouter', 'ConfigToken', 'ERROR_COUNT', 'GENERIC_FAILURE_EXIT_CODE',
+      'LoggerToken', 'ProgressBar', 'PrompterToken', 'ServiceRegistry', 'badge',
+      'bootstrap', 'box', 'captureOutput', 'captureOutputAsync', 'colorize',
+      'colors', 'createCLI', 'createCommand', 'createHelpCommand', 'createLogger',
+      'createMockLogger', 'createMockPrompter', 'createMultiProgress',
+      'createProgress', 'createPrompter', 'createRegistry', 'createTestHarness',
+      'createToken', 'createVersionCommand', 'errorCountOf', 'expectError',
+      'expectErrorAsync', 'formatAllExamples', 'formatCommandHelp',
+      'formatGeneralHelp', 'gradient', 'isFailureResult', 'mockRegistry',
+      'resolveExitCode', 'runCommand', 'spinnerTypes', 'stripColors', 'table',
+      'withProgress', 'withProgressBar'
+    ];
+
+    const r = await runScript(
+      `import * as m from __DIST__;\n` +
+        `const absent = ${JSON.stringify(PUBLISHED_1_2_0)}.filter(k => m[k] === undefined);\n` +
+        `console.log(JSON.stringify(absent));\n`
+    );
+
+    expect(r.stdout.trim()).toBe('[]');
   });
 
   test('the README quick-start runs exactly as printed', async () => {
@@ -94,7 +140,9 @@ describe('public API (built artifact)', () => {
       `await createCLI({ name: 'mycli', version: '1.0.0', commands: { greet } }).run();\n`;
 
     const named = await runScript(source, ['greet', 'merlin']);
-    expect(named.stdout).toContain('Hello, merlin!');
+    // Commentary, so stderr — the change 2.0 makes to every CLI in the estate.
+    expect(named.stderr).toContain('Hello, merlin!');
+    expect(named.stdout).toBe('');
     expect(named.code).toBe(0);
 
     const missing = await runScript(source, ['greet']);
@@ -136,7 +184,7 @@ describe('public API (built artifact)', () => {
       ['greet', 'merlin']
     );
 
-    expect(r.stdout).toContain('hello merlin');
+    expect(r.stderr).toContain('hello merlin');
     expect(r.code).toBe(0);
   });
 
@@ -208,7 +256,7 @@ describe('public API (built artifact)', () => {
     );
 
     const proc = Bun.spawn(
-      ['npx', 'tsc', '--noEmit', '--skipLibCheck', '--module', 'esnext', '--moduleResolution', 'bundler', '--target', 'es2022', probe],
+      ['npx', 'tsc', '--noEmit', '--skipLibCheck', '--module', 'esnext', '--moduleResolution', 'bundler', '--target', 'es2022', '--types', 'node', probe],
       { cwd: REPO_ROOT, stdout: 'pipe', stderr: 'pipe' }
     );
 

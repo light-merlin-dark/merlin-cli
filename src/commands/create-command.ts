@@ -1,22 +1,37 @@
-import type { 
-  Command, 
-  CommandSpec, 
-  CommandContext,
-  Middleware 
+import type {
+  Command,
+  CommandSpec,
+  CommandContext
 } from '../types/index.ts';
 import { validateOptions } from './middleware/validate-options.ts';
 import { validateArgs } from './middleware/validate-args.ts';
 import { logExecution } from './middleware/log-execution.ts';
 
-export function createCommand<T>(spec: CommandSpec<T>): Command<T> {
-  // Validate examples for AI optimization (only in debug mode)
-  if (process.env.DEBUG === 'true' && (!spec.examples || spec.examples.length < 2)) {
-    console.warn(
-      `Command ${spec.name} should have at least 2 diverse examples for AI agents`
-    );
-  }
+/**
+ * Marks a command that declared its arguments or options.
+ *
+ * Only such a command gets strict parsing — an undeclared option is a usage
+ * error rather than a silently accepted typo. A command that declared nothing
+ * never opted in, so it keeps 1.x's permissive parsing untouched.
+ */
+export const DECLARED = Symbol.for('@light-merlin-dark/merlin-cli.declared');
 
-  return {
+export function declaresSurface(command: Command | null | undefined): boolean {
+  if (!command) return false;
+  const marked = (command as unknown as Record<symbol, unknown>)[DECLARED];
+  if (typeof marked === 'boolean') return marked;
+  // Hand-written command objects (no `createCommand`) are judged on content.
+  return Object.keys(command.options ?? {}).length > 0 || Object.keys(command.args ?? {}).length > 0;
+}
+
+export function createCommand<T>(spec: CommandSpec<T>): Command<T> {
+  const subcommands = spec.subcommands
+    ? Object.fromEntries(
+        Object.entries(spec.subcommands).map(([name, sub]) => [name, createCommand(sub)])
+      )
+    : undefined;
+
+  const command: Command<T> = {
     name: spec.name,
     description: spec.description,
     usage: spec.usage || spec.name,
@@ -24,9 +39,12 @@ export function createCommand<T>(spec: CommandSpec<T>): Command<T> {
     options: spec.options || {},
     args: spec.args || {},
     aliases: spec.aliases || [],
+    ...(spec.exitCodes ? { exitCodes: spec.exitCodes } : {}),
+    ...(spec.render ? { render: spec.render as (data: any) => string } : {}),
+    ...(spec.hidden ? { hidden: true } : {}),
+    ...(subcommands ? { subcommands } : {}),
 
     async execute(context: CommandContext): Promise<T> {
-      // Apply middleware
       const middleware = [
         ...(spec.middleware || []),
         validateArgs,
@@ -34,29 +52,29 @@ export function createCommand<T>(spec: CommandSpec<T>): Command<T> {
         logExecution
       ];
 
-      // Create middleware chain
       let index = 0;
-      const command = this; // Reference to the command object
-      
-      const executeWithMiddleware = async (): Promise<T> => {
-        const next = async (): Promise<void> => {
-          if (index < middleware.length) {
-            const currentMiddleware = middleware[index++];
-            await currentMiddleware(context, command, next);
-          }
-        };
-        
-        // Start middleware chain
-        await next();
-        
-        // Execute command after all middleware
-        if (!spec.execute) {
-          throw new Error(`Command '${spec.name}' has no execute function`);
+      const self = this;
+
+      const next = async (): Promise<void> => {
+        if (index < middleware.length) {
+          const current = middleware[index++];
+          await current(context, self, next);
         }
-        return spec.execute(context);
       };
 
-      return executeWithMiddleware();
+      await next();
+
+      if (!spec.execute) {
+        throw new Error(`Command '${spec.name}' has no execute function`);
+      }
+      return spec.execute(context);
     }
   };
+
+  Object.defineProperty(command, DECLARED, {
+    value: spec.options !== undefined || spec.args !== undefined,
+    enumerable: false
+  });
+
+  return command;
 }

@@ -1,8 +1,7 @@
 import { test, expect, describe, beforeAll } from 'bun:test';
-import { readFileSync, statSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { ensureBuilt, runScript, REPO_ROOT, DIST_ENTRY } from './harness.ts';
+import { readFileSync, statSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { ensureBuilt, ensurePacked, runScript, REPO_ROOT, DIST_ENTRY } from './harness.ts';
 
 const pkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
 
@@ -19,30 +18,53 @@ const pkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
  */
 describe('packaging', () => {
   beforeAll(async () => {
-    await ensureBuilt();
-  }, 120_000);
+    await ensurePacked();
+  }, 180_000);
 
-  test('sideEffects is not false', async () => {
+  test('sideEffects is not false', () => {
     // The specific flag that caused it. Kept as a named regression guard so a
     // future "bundle size optimisation" has to argue with a test.
     expect(pkg.sideEffects).not.toBe(false);
   });
 
-  test('the bundle contains the whole framework, not a stub', async () => {
-    const bytes = statSync(DIST_ENTRY).size;
-
-    // The stub was 65 KB; a complete bundle is several times that. This is a
-    // floor, not a size budget — it only has to catch catastrophic elision.
-    expect(bytes).toBeGreaterThan(120_000);
+  test('there are no runtime dependencies', () => {
+    // Every dependency is a decade of someone else's release decisions. The
+    // two this package had — picocolors and prompts — are now ~60 and ~120
+    // lines of first-party code.
+    expect(pkg.dependencies ?? {}).toEqual({});
   });
 
-  test('every entry point in package.json exists on disk', async () => {
+  test('the package runs no install scripts', () => {
+    for (const hook of ['preinstall', 'install', 'postinstall', 'prepare']) {
+      expect(pkg.scripts?.[hook]).toBeUndefined();
+    }
+  });
+
+  test('the bundle contains the whole framework, not a stub', () => {
+    // Size alone is a weak signal, so this also looks for a fingerprint from
+    // each module that was elided the first time.
+    const bundle = readFileSync(DIST_ENTRY, 'utf8');
+
+    for (const fingerprint of [
+      'Unknown command',           // router
+      'merlin-cli/manifest/v2',    // manifest
+      'errorCount',                // logger instrumentation
+      'Unknown option',            // grammar
+      'contract'                   // envelope
+    ]) {
+      expect(bundle).toContain(fingerprint);
+    }
+
+    expect(statSync(DIST_ENTRY).size).toBeGreaterThan(60_000);
+  });
+
+  test('every entry point in package.json exists on disk', () => {
     for (const path of [pkg.main, pkg.types].filter(Boolean)) {
       expect(() => statSync(join(REPO_ROOT, path))).not.toThrow();
     }
   });
 
-  test('every path the exports map promises actually exists', async () => {
+  test('every path the exports map promises actually exists', () => {
     // `exports` claimed a CommonJS build at ./dist/index.cjs that the build
     // script never produced, so `require()` of this package threw
     // ERR_MODULE_NOT_FOUND. Same species as the tree-shaken stub: a declared
@@ -59,36 +81,52 @@ describe('packaging', () => {
     walk(pkg.exports);
 
     expect(promised.length).toBeGreaterThan(0);
-
     for (const rel of promised) {
       expect(() => statSync(join(REPO_ROOT, rel))).not.toThrow();
     }
   });
 
-  test('no dependency is declared without being used', async () => {
+  test('no dependency is declared without being used', () => {
     // `valibot` sat in dependencies with zero imports — and the README
     // advertised it. A public package should not make every consumer install
     // something it never loads.
-    const sources = Bun.spawnSync(['git', 'grep', '-lE', "from '[a-z@]", '--', 'src'], {
-      cwd: REPO_ROOT
-    });
-    const text = sources.stdout.toString();
-    expect(text.length).toBeGreaterThan(0);
-
-    const all = Bun.spawnSync(['git', 'grep', '-hoE', "from '[^.'][^']*'", '--', 'src'], {
+    const imported = Bun.spawnSync(['git', 'grep', '-hoE', "from '[^.'][^']*'", '--', 'src'], {
       cwd: REPO_ROOT
     })
       .stdout.toString()
       .split('\n')
-      .map(l => l.replace(/^from '|'$/g, '').trim())
+      .map(line => line.replace(/^from '|'$/g, '').trim())
       .filter(Boolean)
-      .map(s => (s.startsWith('@') ? s.split('/').slice(0, 2).join('/') : s.split('/')[0]));
+      .map(name => (name.startsWith('@') ? name.split('/').slice(0, 2).join('/') : name.split('/')[0]));
 
-    const used = new Set(all);
-
+    const used = new Set(imported);
     for (const dep of Object.keys(pkg.dependencies ?? {})) {
       expect(used.has(dep)).toBe(true);
     }
+  });
+
+  test('the framework imports only the runtime API intersection', () => {
+    // Node, Bun and Deno agree on `node:` builtins and globals. A runtime-
+    // specific code path would be a defect, not a feature.
+    const imported = Bun.spawnSync(['git', 'grep', '-hoE', "from '[^.'][^']*'", '--', 'src'], {
+      cwd: REPO_ROOT
+    })
+      .stdout.toString()
+      .split('\n')
+      .map(line => line.replace(/^from '|'$/g, '').trim())
+      .filter(Boolean);
+
+    for (const specifier of imported) {
+      expect(specifier.startsWith('node:')).toBe(true);
+    }
+  });
+
+  test('the contract ships with the package', async () => {
+    // A promise a consumer cannot read is not much of a promise.
+    expect(pkg.files).toContain('CONTRACT.md');
+
+    const entry = await ensurePacked();
+    expect(() => statSync(join(dirname(dirname(entry)), 'CONTRACT.md'))).not.toThrow();
   });
 
   test('the bundle imports cleanly under plain Node', async () => {
@@ -98,41 +136,47 @@ describe('packaging', () => {
 
     expect(r.stderr).toBe('');
     expect(r.code).toBe(0);
-    expect(Number(r.stdout.trim())).toBeGreaterThan(10);
+    expect(Number(r.stdout.trim())).toBeGreaterThan(40);
   });
 
-  test('the packed tarball carries a working framework', async () => {
-    // The end of the chain: pack exactly what publish would, unpack it, and
-    // import it the way a consumer's node_modules would. Defect #4 was that
-    // nothing between a green suite and a live install ever did this.
-    const dir = mkdtempSync(join(tmpdir(), 'merlin-cli-pack-'));
-
-    const pack = Bun.spawn(['npm', 'pack', '--pack-destination', dir], {
-      cwd: REPO_ROOT,
-      stdout: 'pipe',
-      stderr: 'pipe'
-    });
-    expect(await pack.exited).toBe(0);
-
-    const tarball = (await new Response(pack.stdout).text()).trim().split('\n').pop()!;
-
-    const untar = Bun.spawn(['tar', '-xzf', join(dir, tarball), '-C', dir], {
-      stdout: 'pipe',
-      stderr: 'pipe'
-    });
-    expect(await untar.exited).toBe(0);
-
-    const packedEntry = join(dir, 'package', pkg.main);
+  test('the packed tarball carries a working framework under Bun as well', async () => {
+    // LONG-2: the same artifact, the other runtime.
     const r = await runScript(
-      `import { createCLI, createCommand, createToken, LoggerToken, PrompterToken } from ${JSON.stringify(packedEntry)};\n` +
-        `const cli = createCLI({ name: 'packed', version: '0.0.0', plugins: { enabled: false }, commands: {\n` +
+      `import { createCLI } from __DIST__;\n` +
+        `await createCLI({ name: 'packed', version: '0.0.0', commands: {\n` +
         `  fail: { name: 'fail', description: 'd', execute: () => ({ success: false }) }\n` +
-        `} });\n` +
-        `await cli.run();\n`,
-      ['fail']
+        `} }).run();\n`,
+      ['fail'],
+      { runtime: 'bun' }
     );
 
-    // Imported from the tarball, and the exit-code contract still holds there.
     expect(r.code).toBe(1);
+  }, 180_000);
+
+  test('the packed tarball carries a working framework under Deno as well', async () => {
+    // Runtime neutrality is a claim the README makes, so it is checked rather
+    // than assumed. Deno has no `setImmediate`; relying on one was the defect
+    // this test now guards.
+    const available = Bun.spawnSync(['deno', '--version'], { stdout: 'pipe', stderr: 'pipe' });
+    if (!available.success) return;
+
+    const r = await runScript(
+      `import { createCLI } from __DIST__;\n` +
+        `await createCLI({ name: 'packed', version: '0.0.0', commands: {\n` +
+        `  ok: { name: 'ok', description: 'd', execute: () => ({ fine: true }) },\n` +
+        `  fail: { name: 'fail', description: 'd', execute: () => ({ success: false }) }\n` +
+        `} }).run();\n`,
+      ['ok', '--json'],
+      { runtime: 'deno', denoArgs: ['run', '--allow-read', '--allow-env', '--allow-sys'] }
+    );
+
+    expect(r.code).toBe(0);
+    expect(r.json().ok).toBe(true);
+  }, 180_000);
+
+  test('the build is reproducible from a clean tree', async () => {
+    const first = readFileSync(DIST_ENTRY);
+    await ensureBuilt();
+    expect(readFileSync(DIST_ENTRY).equals(first)).toBe(true);
   }, 180_000);
 });

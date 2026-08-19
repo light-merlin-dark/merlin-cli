@@ -11,6 +11,11 @@
  * (strings, numbers, arrays, records) behave exactly as before.
  */
 
+import { GENERIC_FAILURE_EXIT_CODE, normalizeExitCode } from './errors.ts';
+
+export { GENERIC_FAILURE_EXIT_CODE, normalizeExitCode };
+export { USAGE_EXIT_CODE, UsageError, isUsageError, exitCodeOfError } from './errors.ts';
+
 export interface CommandResult<T = unknown> {
   /** `false` marks the command as failed; the process exits non-zero. */
   success?: boolean;
@@ -23,33 +28,6 @@ export interface CommandResult<T = unknown> {
   [key: string]: unknown;
 }
 
-/** Exit code used when a command reports failure without naming a code. */
-export const GENERIC_FAILURE_EXIT_CODE = 1;
-
-/**
- * Clamp an arbitrary number into the range a POSIX process can actually
- * report. `process.exit(256)` silently becomes 0 — that would reintroduce the
- * very fail-open this module exists to close, so out-of-range and non-finite
- * codes collapse to a generic failure instead.
- */
-function normalizeExitCode(code: number): number {
-  if (!Number.isFinite(code)) {
-    return GENERIC_FAILURE_EXIT_CODE;
-  }
-
-  const truncated = Math.trunc(code);
-
-  if (truncated === 0) {
-    return 0;
-  }
-
-  if (truncated < 0 || truncated > 255) {
-    return GENERIC_FAILURE_EXIT_CODE;
-  }
-
-  return truncated;
-}
-
 /**
  * Resolve the exit code implied by a command's return value.
  *
@@ -60,13 +38,8 @@ function normalizeExitCode(code: number): number {
  * - anything else (data payloads, primitives, arrays) -> 0
  */
 export function resolveExitCode(result: unknown): number {
-  if (result === undefined || result === null) {
-    return 0;
-  }
-
-  if (typeof result !== 'object' || Array.isArray(result)) {
-    return 0;
-  }
+  if (result === undefined || result === null) return 0;
+  if (typeof result !== 'object' || Array.isArray(result)) return 0;
 
   const candidate = result as CommandResult;
 

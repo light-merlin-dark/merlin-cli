@@ -4,37 +4,27 @@ export { type BootstrapConfig };
 
 let bootstrapped = false;
 
+/**
+ * Process-level safety net, installed once.
+ *
+ * Signal handling used to live here and exited `0` on SIGINT, which told every
+ * caller that an interrupted command had succeeded. It now belongs to the run
+ * itself (`installSignalHandling`), where there is a command to abort and a
+ * result to render.
+ */
 export async function bootstrap(config: BootstrapConfig): Promise<void> {
-  // Prevent double-bootstrapping
-  if (bootstrapped) {
-    return;
-  }
+  if (bootstrapped) return;
   bootstrapped = true;
 
-  const { registry } = config;
+  void config;
 
-  // Set up global error handlers
   process.on('uncaughtException', (error: Error) => {
-    console.error('Uncaught Exception:', error);
+    process.stderr.write(`Uncaught exception: ${error?.stack ?? error}\n`);
     process.exit(1);
   });
 
-  process.on('unhandledRejection', (reason: unknown, _promise: Promise<unknown>) => {
-    console.error('Unhandled Rejection:', reason);
+  process.on('unhandledRejection', (reason: unknown) => {
+    process.stderr.write(`Unhandled rejection: ${reason}\n`);
     process.exit(1);
   });
-
-  // Set up graceful shutdown
-  const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGQUIT'];
-  for (const signal of signals) {
-    process.on(signal, async () => {
-      console.log(`\nReceived ${signal}, shutting down gracefully...`);
-      // Allow pending I/O to complete
-      await new Promise(resolve => setImmediate(resolve));
-      process.exit(0);
-    });
-  }
-
-  // Additional bootstrap logic can be added here
-  // For example, loading environment variables, checking dependencies, etc.
 }

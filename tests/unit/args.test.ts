@@ -244,7 +244,7 @@ describe('Args Help Formatting', () => {
     expect(help).toContain('deploy <environment> [version]');
     expect(help).toContain('Arguments:');
     expect(help).toContain('environment  Target environment (required) [string]');
-    expect(help).toContain('version  Version to deploy [string]');
+    expect(help).toContain('version      Version to deploy [string]');
   });
 
   test('shows usage without args when none defined', () => {

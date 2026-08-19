@@ -10,6 +10,8 @@ export interface LoggerConfig {
   silent?: boolean;
   colors?: boolean;
   prefix?: string;
+  /** Where commentary goes. Defaults to `process.stderr`. */
+  stream?: { write(chunk: string): unknown };
 }
 
 export interface CustomRouterResult {
@@ -46,10 +48,33 @@ export interface CLIConfig {
    * - `'off'` — legacy behaviour; only the return value decides. For a CLI
    *   that genuinely reports non-fatal errors and means to continue.
    *
-   * Only applies to loggers created by this framework. A consumer-supplied
-   * `Logger` keeps no count, so it silently falls back to `'off'`.
+   * Applies to whatever logger is registered under `LoggerToken`, whoever
+   * registers it and whenever — consumer loggers are wrapped transparently.
    */
   errorExitPolicy?: 'strict' | 'off';
+  /**
+   * Reject undeclared options on commands that declare their own args or
+   * options. Defaults to `'on'`.
+   *
+   * A silently accepted `--forse` is how a deploy skips its confirmation flag.
+   * Commands that declare nothing are unaffected either way: strictness is
+   * earned by declaring, never imposed on a command that never opted in.
+   */
+  strictOptions?: 'on' | 'off';
+  /**
+   * How long a command has to clean up after SIGINT/SIGTERM before the process
+   * leaves with 130/143. Defaults to 3000 ms.
+   */
+  gracePeriodMs?: number;
+  /**
+   * Where payload and commentary go. Defaults to the process's own streams;
+   * overridden by the in-process test harness so a run can be observed without
+   * spawning one.
+   */
+  streams?: {
+    stdout?: { write(chunk: string): unknown };
+    stderr?: { write(chunk: string): unknown };
+  };
   /**
    * @deprecated Accepted and ignored. The plugin system was removed in 1.2.0 —
    * it was 313 lines that no consumer ever loaded a plugin through. The key

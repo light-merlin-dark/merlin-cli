@@ -1,10 +1,18 @@
-import type { CommandContext, Command, CommandDefinition, Middleware, ArgSpec } from '../../types/index.ts';
+import type { Command, Middleware, ArgSpec } from '../../types/index.ts';
+import { UsageError } from '../../core/errors.ts';
 
 export const validateArgs: Middleware = async (context, command, next) => {
   const { args: providedArgs } = context;
   
   // Skip validation for lazy-loaded commands or commands without args
   if (typeof command === 'function') {
+    await next();
+    return;
+  }
+
+  // The router parses and binds for a routed invocation; this middleware exists
+  // for the direct-execute path that tests and embedders use.
+  if (context.namedArgs !== undefined) {
     await next();
     return;
   }
@@ -58,7 +66,7 @@ export const validateArgs: Middleware = async (context, command, next) => {
   }
 
   if (errors.length > 0) {
-    throw new Error(`Validation errors:\n${errors.join('\n')}`);
+    throw new UsageError(errors.join('\n'));
   }
 
   // Add named args to context

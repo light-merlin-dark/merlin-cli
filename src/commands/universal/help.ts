@@ -1,78 +1,73 @@
 import { createCommand } from '../create-command.ts';
-import type { Command, HelpOptions } from '../../types/index.ts';
-import { formatCommandHelp, formatGeneralHelp, formatAllExamples } from '../../utils/help-formatter.ts';
+import type { Command, CommandDefinition, HelpOptions } from '../../types/index.ts';
+import { buildManifest, manifestSubtree, type Manifest } from '../../core/manifest.ts';
+import { formatManifest, formatManifestCommand, formatAllExamples } from '../../utils/help-formatter.ts';
+import { UsageError } from '../../core/errors.ts';
 
 export interface HelpCommandOptions {
   name: string;
-  commands: Record<string, Command | (() => Promise<Command>)>;
+  version?: string;
+  description?: string;
+  commands: Record<string, CommandDefinition>;
   options?: HelpOptions;
 }
 
-export function createHelpCommand(config: HelpCommandOptions): Command<string> {
+/**
+ * Help, as a projection of the manifest.
+ *
+ * It returns data and declares how to render it, like any other command, which
+ * is what makes `help --json` fall out for free: the same subtree an agent
+ * reads is the one a human sees formatted.
+ */
+export function createHelpCommand(config: HelpCommandOptions): Command<unknown> {
+  const manifest = (): Manifest =>
+    buildManifest({
+      name: config.name,
+      version: config.version ?? '',
+      description: config.description,
+      commands: config.commands
+    });
+
   return createCommand({
     name: 'help',
     description: 'Show help information',
-    usage: 'help [command]',
+    usage: 'help [command] [subcommand...]',
     examples: [
-      'help              # Show general help',
-      'help add          # Show help for specific command',
-      'help --examples   # Show all command examples',
-      'help --json       # Output help as JSON'
+      'help',
+      'help deploy',
+      'help --examples',
+      'help --json'
     ],
     options: {
       examples: {
         type: 'boolean',
         description: 'Show practical examples for all commands'
-      },
-      json: {
-        type: 'boolean',
-        description: 'Output help in JSON format'
       }
     },
 
+    render: (data: unknown) => {
+      if (typeof data === 'string') return data;
+      const entry = data as Manifest | { path?: string[] };
+      return 'path' in entry && entry.path
+        ? formatManifestCommand(entry as never)
+        : formatManifest(entry as Manifest);
+    },
+
     execute: async ({ args, options }) => {
-      if (args.length > 0) {
-        // Show help for specific command or subcommand
-        let command = config.commands[args[0]];
-        let commandPath = [args[0]];
-
-        if (!command) {
-          throw new Error(`Unknown command: ${args[0]}`);
-        }
-
-        // Resolve lazy-loaded command if needed
-        if (typeof command === 'function') {
-          command = await command();
-        }
-
-        // Navigate to subcommand if specified
-        for (let i = 1; i < args.length; i++) {
-          if (command.subcommands && command.subcommands[args[i]]) {
-            command = command.subcommands[args[i]];
-            commandPath.push(args[i]);
-          } else {
-            throw new Error(`Unknown subcommand '${args[i]}' for command '${commandPath.join(' ')}'`);
-          }
-        }
-
-        const output = formatCommandHelp(command, {
-          ...config.options,
-          format: options.json ? 'json' : config.options?.format
-        });
-        console.log(output);
-        return output;
-      }
-
-      // Show general help
       if (options.examples) {
-        const output = await formatAllExamples(config.commands);
-        console.log(output);
-        return output;
+        return formatAllExamples(config.commands);
       }
 
-      const output = await formatGeneralHelp(config);
-      console.log(output);
-      return output;
+      if (args.length === 0) {
+        return manifest();
+      }
+
+      const subtree = manifestSubtree(manifest(), args);
+      if (!subtree) {
+        throw new UsageError(`Unknown command: ${args.join(' ')}`);
+      }
+
+      return subtree;
     }
   });
 }

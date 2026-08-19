@@ -1,7 +1,7 @@
 {
   "name": "@light-merlin-dark/merlin-cli",
-  "version": "1.2.0",
-  "description": "A small TypeScript CLI framework that exits non-zero when your command fails.",
+  "version": "2.0.0",
+  "description": "A TypeScript CLI framework whose commands are readable by machines: honest exit codes, --json and --ndjson for free, and a manifest that describes the whole tool in one call.",
   "keywords": [
     "cli",
     "cli-framework",
@@ -9,14 +9,20 @@
     "typescript",
     "bun",
     "node",
+    "deno",
     "exit-code",
+    "json-output",
+    "ndjson",
+    "agent-friendly",
+    "machine-readable",
+    "argv-parser",
     "dependency-injection",
     "service-registry",
     "middleware",
     "lazy-loading",
-    "testing",
-    "commander-alternative",
-    "type-safe"
+    "conformance",
+    "zero-dependencies",
+    "commander-alternative"
   ],
   "homepage": "https://github.com/light-merlin-dark/merlin-cli#readme",
   "repository": {
@@ -45,6 +51,7 @@
   "files": [
     "dist/**/*",
     "!dist/tsconfig.tsbuildinfo",
+    "CONTRACT.md",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -62,13 +69,9 @@
     "node": ">=20.0.0",
     "bun": ">=1.2.0"
   },
-  "dependencies": {
-    "picocolors": "^1.0.0",
-    "prompts": "^2.4.2"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/prompts": "^2.4.9",
     "bun-types": "latest",
     "typescript": "^5.0.0"
   },

@@ -1,7 +1,8 @@
 import { createRegistry, LoggerToken, PrompterToken, type ServiceRegistry } from '../core/registry.ts';
 import { createLogger, type Logger } from '../services/logger.ts';
 import type { Prompter } from '../services/prompter.ts';
-import type { Command, CommandContext, ServiceMap } from '../types/index.ts';
+import type { Command, CommandContext } from '../types/index.ts';
+import { runCLI, type RunResult } from './run.ts';
 
 export interface MockPrompterOptions {
   responses?: Record<string, any>;
@@ -117,6 +118,8 @@ export async function runCommand(
 
 export interface CLITestHarness {
   runCommand(commandName: string, args?: string[], options?: Record<string, any>): Promise<void>;
+  /** Run the whole pipeline over these commands, capturing both streams. */
+  runCLI(args?: string[]): Promise<RunResult>;
   getOutput(): string[];
   getLogger(): Logger & { output: string[] };
   getPrompter(): Prompter;
@@ -134,6 +137,10 @@ export function createTestHarness(commands: Record<string, Command>): CLITestHar
   registry.register(PrompterToken, prompter);
   
   return {
+    async runCLI(args: string[] = []): Promise<RunResult> {
+      return runCLI({ name: 'test-cli', version: '0.0.0', commands }, args);
+    },
+
     async runCommand(commandName: string, args: string[] = [], options: Record<string, any> = {}): Promise<void> {
       const command = commands[commandName];
       if (!command) {
