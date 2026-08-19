@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.2]
+
+### Added — MIGRATING.md, shipped with the package
+
+An eight-step migration procedure, written while migrating real CLIs and naming
+the specific things that went wrong in them: pre-router command gates that
+reject `manifest`, options read but never declared, `--json` that a command
+already owns, and `onError` hooks that flatten exit 2 into exit 1.
+
+It ships in the tarball rather than only living in this repository, because the
+migration happens in the consumer's tree — where the guide is now readable at
+`node_modules/@light-merlin-dark/merlin-cli/MIGRATING.md`.
+
 ## [2.0.1]
 
 ### Fixed — colour functions rejected numbers

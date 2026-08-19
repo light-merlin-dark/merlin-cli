@@ -121,12 +121,17 @@ describe('packaging', () => {
     }
   });
 
-  test('the contract ships with the package', async () => {
-    // A promise a consumer cannot read is not much of a promise.
-    expect(pkg.files).toContain('CONTRACT.md');
-
+  test('the contract and the migration guide ship with the package', async () => {
+    // A promise a consumer cannot read is not much of a promise — and a
+    // migration guide is only useful where the migration happens, which is in
+    // the consumer's own repository, in its node_modules.
     const entry = await ensurePacked();
-    expect(() => statSync(join(dirname(dirname(entry)), 'CONTRACT.md'))).not.toThrow();
+    const root = dirname(dirname(entry));
+
+    for (const doc of ['CONTRACT.md', 'MIGRATING.md']) {
+      expect(pkg.files).toContain(doc);
+      expect(() => statSync(join(root, doc))).not.toThrow();
+    }
   });
 
   test('the bundle imports cleanly under plain Node', async () => {

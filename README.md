@@ -328,6 +328,11 @@ covering it.
 
 ## Upgrading from 1.x
 
+[MIGRATING.md](MIGRATING.md) is the working procedure — eight steps, written
+while migrating real CLIs, naming the specific things that went wrong in them.
+It ships inside the package, so in any project that has installed this you can
+read it at `node_modules/@light-merlin-dark/merlin-cli/MIGRATING.md`.
+
 Every 1.2.0 export still resolves, and there is a conformance test that checks
 it against the published surface. Seven behaviours changed:
 
