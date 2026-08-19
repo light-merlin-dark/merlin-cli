@@ -10,6 +10,10 @@ npm install @light-merlin-dark/merlin-cli
 Node 20+, Bun, or Deno. Zero runtime dependencies. 85 KB, unminified, readable
 in an afternoon.
 
+Built by [Robert E. Beckner III (Merlin)](https://rbeckner.com). The story of
+why it was rebuilt from scratch — and the brief that produced the contract below
+— is in [The Last CLI](https://rbeckner.com/articles/the-last-cli/).
+
 ---
 
 ## Your command already returns a value. That value becomes JSON.
@@ -358,6 +362,26 @@ Every export published in 1.2.0 still resolves; a conformance test checks the
 because redefining `ctx.args` would have broken every command in every consumer,
 and not breaking a consumer outranks every other value in this repository.
 
+## Where this came from
+
+This started as a base so that improvements to one command-line tool could reach
+the others instead of dying in the repository where they were made. It was
+extracted on 6 July 2025 — 2 tools were depending on version 1.0.0 the same day,
+8 within 25 days — and it served 10 of them for 13 months.
+
+2.0 exists because the world it was written for moved: most of the invocations
+of those tools are no longer typed by a person. So the brief for the rebuild was
+set deliberately high —
+
+> If this were the last CLI framework humanity built — the one still in service
+> in a decade — you now have the chance to make it that.
+
+Claude Fable answered it with the specification. Claude Opus 5 and Merlin built
+it, migrated 7 tools onto it in a day, and wrote down every promise it makes as
+a clause a test has to keep. The full account, including the 3 things the
+specification got wrong and how the migrations found them, is in
+[The Last CLI](https://rbeckner.com/articles/the-last-cli/).
+
 ## License
 
-MIT
+MIT © [Robert E. Beckner III (Merlin)](https://rbeckner.com)

@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.5]
+
+### Added — where this came from
+
+The README now credits its author and links the article that tells the story:
+the base existed so improvements to one command-line tool could reach the
+others, and 2.0 exists because most invocations of those tools are no longer
+typed by a person. The brief that produced this contract is quoted where the
+origin is explained.
+
 ## [2.0.4]
 
 ### Changed — the README leads with what 2.0 actually is
